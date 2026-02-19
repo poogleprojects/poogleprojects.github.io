@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viking Trail – A Norse Survival Adventure</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Cinzel:wght@400;700&display=swap');
+ 
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+ 
+        body {
+            background: #0a0a12;
+            color: #d4c5a0;
+            font-family: 'Cinzel', serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+ 
+        /* ── Starry / aurora background ── */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse at 20% 0%, rgba(34,139,34,.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 10%, rgba(72,61,139,.15) 0%, transparent 50%),
+                radial-gradient(circle at 50% 100%, rgba(20,20,40,.9) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+ 
+        #app {
+            position: relative;
+            z-index: 1;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 16px;
+        }
+ 
+        /* ── Header ── */
+        header {
+            text-align: center;
+            padding: 18px 0 10px;
+        }
+        header h1 {
+            font-family: 'MedievalSharp', cursive;
+            font-size: 2.6rem;
+            color: #f0d060;
+            text-shadow: 0 0 20px rgba(240,208,96,.4);
+            letter-spacing: 2px;
+        }
+        header p {
+            font-size: .85rem;
+            color: #887a5e;
+            margin-top: 4px;
+        }
+ 
+        /* ── Status Bar ── */
+        #status-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin: 14px 0;
+        }
+        .stat-box {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            padding: 8px 16px;
+            min-width: 110px;
+            text-align: center;
+        }
+        .stat-box .label {
+            font-size: .65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #6a6a8a;
+        }
+        .stat-box .value {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+        .stat-box .value.health { color: #e74c3c; }
+        .stat-box .value.food { color: #e67e22; }
+        .stat-box .value.wood { color: #8B6914; }
+        .stat-box .value.stone { color: #95a5a6; }
+        .stat-box .value.gold { color: #f1c40f; }
+        .stat-box .value.day { color: #5dade2; }
+        .stat-box .value.dist { color: #a29bfe; }
+ 
+        /* ── HP bar ── */
+        .hp-bar-wrap {
+            width: 100%;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            margin-top: 4px;
+            overflow: hidden;
+        }
+        .hp-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #c0392b, #e74c3c);
+            transition: width .4s;
+            border-radius: 3px;
+        }
+ 
+        /* ── Main panels ── */
+        .panel {
+            background: linear-gradient(160deg, #111122, #0d1117);
+            border: 1px solid #222244;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 14px;
+        }
+        .panel h2 {
+            font-family: 'MedievalSharp', cursive;
+            font-size: 1.3rem;
+            color: #c8a84e;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #2a2a3a;
+            padding-bottom: 6px;
+        }
+ 
+        /* ── Narrative log ── */
+        #narrative {
+            max-height: 260px;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+        }
+        #narrative::-webkit-scrollbar { width: 6px; }
+        #narrative::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 3px; }
+        .log-entry {
+            padding: 6px 0;
+            border-bottom: 1px solid #1a1a2e;
+            line-height: 1.5;
+            font-size: .88rem;
+            animation: fadeIn .3s;
+        }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry .turn-num { color: #5a5a8a; font-size: .75rem; }
+        .log-entry.combat { border-left: 3px solid #e74c3c; padding-left: 10px; }
+        .log-entry.loot { border-left: 3px solid #f1c40f; padding-left: 10px; }
+        .log-entry.event { border-left: 3px solid #3498db; padding-left: 10px; }
+        .log-entry.danger { border-left: 3px solid #e67e22; padding-left: 10px; }
+        .log-entry.heal { border-left: 3px solid #2ecc71; padding-left: 10px; }
+ 
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+ 
+        /* ── Biome banner ── */
+        #biome-banner {
+            text-align: center;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 14px;
+            font-family: 'MedievalSharp', cursive;
+            font-size: 1.1rem;
+            transition: background .5s;
+        }
+ 
+        /* ── Action buttons ── */
+        #actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .btn {
+            font-family: 'Cinzel', serif;
+            font-size: .82rem;
+            padding: 10px 20px;
+            border: 1px solid #3a3a5a;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all .2s;
+            background: linear-gradient(135deg, #1e1e3a, #16213e);
+            color: #d4c5a0;
+            min-width: 120px;
+        }
+        .btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #2a2a5a, #1e3a5e);
+            border-color: #c8a84e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(200,168,78,.15);
+        }
+        .btn:disabled {
+            opacity: .35;
+            cursor: not-allowed;
+        }
+        .btn.primary {
+            background: linear-gradient(135deg, #6b4c1e, #8B6914);
+            border-color: #c8a84e;
+            color: #fff;
+        }
+ 
+        /* ── Inventory ── */
+        #inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 8px;
+        }
+        .inv-item {
+            background: #151528;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: .82rem;
+        }
+        .inv-item .qty {
+            background: #2a2a4a;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-weight: 700;
+            font-size: .8rem;
+        }
+ 
+        /* ── Equipment ── */
+        .equip-slot {
+            display: inline-block;
+            background: #1a1a30;
+            border: 1px dashed #3a3a5a;
+            border-radius: 6px;
+            padding: 6px 14px;
+            margin: 4px;
+            font-size: .82rem;
+        }
+        .equip-slot.filled { border-style: solid; border-color: #c8a84e; }
+ 
+        /* ── Crafting ── */
+        .craft-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #151528;
+            border: 1px solid #2a2a4a;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-bottom: 6px;
+        }
+        .craft-item .cost { font-size: .75rem; color: #6a6a8a; }
+ 
+        /* ── Map ── */
+        #map-container {
+            display: flex;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        #map-canvas {
+            border: 1px solid #2a2a4a;
+            border-radius: 8px;
+            background: #0d0d1a;
+        }
+ 
+        /* ── Game Over / Victory ── */
+        .overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,.85);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .overlay.show { display: flex; }
+        .overlay-box {
+            background: linear-gradient(160deg, #1a1a2e, #0d1117);
+            border: 2px solid #c8a84e;
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            max-width: 460px;
+        }
+        .overlay-box h2 {
+            font-family: 'MedievalSharp', cursive;
+            font-size: 2rem;
+            color: #f0d060;
+            margin-bottom: 12px;
+        }
+        .overlay-box p { margin-bottom: 20px; line-height: 1.6; }
+ 
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.8rem; }
+            .stat-box { min-width: 80px; padding: 6px 10px; }
+            .btn { min-width: 100px; padding: 8px 14px; font-size: .75rem; }
+        }
+ 
+        /* ── Tabs ── */
+        .tab-bar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        .tab-btn {
+            font-family: 'Cinzel', serif;
+            font-size: .75rem;
+            padding: 6px 16px;
+            background: #151528;
+            border: 1px solid #2a2a4a;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            color: #6a6a8a;
+            cursor: pointer;
+            transition: .2s;
+        }
+        .tab-btn.active {
+            background: #1e1e3a;
+            color: #c8a84e;
+            border-color: #3a3a5a;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+ 
+        /* ── Combat modal ── */
+        #combat-panel {
+            display: none;
+            border: 1px solid #e74c3c;
+            background: linear-gradient(160deg, #1a0a0a, #120808);
+        }
+        #combat-panel.show { display: block; }
+        #combat-panel h2 { color: #e74c3c; }
+        .enemy-info {
+            text-align: center;
+            margin-bottom: 14px;
+        }
+        .enemy-info .emoji { font-size: 3rem; }
+        .enemy-info .name { font-size: 1.1rem; color: #e74c3c; }
+        .enemy-hp-bar {
+            width: 60%;
+            margin: 6px auto;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .enemy-hp-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #c0392b, #e74c3c);
+            transition: width .3s;
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <header>
+        <h1>⚔️ Viking Trail ⚔️</h1>
+        <p>Survive the Norse wilds — Reach Valhalla or perish trying</p>
+    </header>
+ 
+    <!-- Status Bar -->
+    <div id="status-bar">
+        <div class="stat-box">
+            <div class="label">❤️ Health</div>
+            <div class="value health" id="hp-val">100</div>
+            <div class="hp-bar-wrap"><div class="hp-bar-fill" id="hp-bar" style="width:100%"></div></div>
+        </div>
+        <div class="stat-box">
+            <div class="label">🍖 Food</div>
+            <div class="value food" id="food-val">20</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">🪵 Wood</div>
+            <div class="value wood" id="wood-val">5</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">🪨 Stone</div>
+            <div class="value stone" id="stone-val">3</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">💰 Gold</div>
+            <div class="value gold" id="gold-val">10</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">☀️ Day</div>
+            <div class="value day" id="day-val">1</div>
+        </div>
+        <div class="stat-box">
+            <div class="label">🗺️ Progress</div>
+            <div class="value dist" id="dist-val">0 / 100</div>
+        </div>
+    </div>
+ 
+    <!-- Biome banner -->
+    <div id="biome-banner">🌲 Meadows — The journey begins...</div>
+ 
+    <!-- Mini map -->
+    <div id="map-container">
+        <canvas id="map-canvas" width="600" height="60"></canvas>
+    </div>
+ 
+    <!-- Combat Panel -->
+    <div class="panel" id="combat-panel">
+        <h2>⚔️ Combat!</h2>
+        <div class="enemy-info">
+            <div class="emoji" id="enemy-emoji">🐗</div>
+            <div class="name" id="enemy-name">Boar</div>
+            <div>HP: <span id="enemy-hp-text">10/10</span></div>
+            <div class="enemy-hp-bar"><div class="enemy-hp-fill" id="enemy-hp-bar" style="width:100%"></div></div>
+        </div>
+        <div id="combat-actions" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"></div>
+    </div>
+ 
+    <!-- Narrative Log -->
+    <div class="panel">
+        <h2>📜 Journey Log</h2>
+        <div id="narrative"></div>
+    </div>
+ 
+    <!-- Actions -->
+    <div class="panel" id="action-panel">
+        <h2>🎯 Actions</h2>
+        <div id="actions"></div>
+    </div>
+ 
+    <!-- Tabs: Inventory / Crafting / Equipment -->
+    <div class="panel">
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="showTab('inv')">🎒 Inventory</button>
+            <button class="tab-btn" onclick="showTab('craft')">🔨 Crafting</button>
+            <button class="tab-btn" onclick="showTab('equip')">🛡️ Equipment</button>
+        </div>
+        <div id="tab-inv" class="tab-content active">
+            <div id="inventory-grid"></div>
+        </div>
+        <div id="tab-craft" class="tab-content">
+            <div id="craft-list"></div>
+        </div>
+        <div id="tab-equip" class="tab-content">
+            <div id="equip-display"></div>
+        </div>
+    </div>
+</div>
+ 
+<!-- Overlays -->
+<div class="overlay" id="death-overlay">
+    <div class="overlay-box">
+        <h2>💀 You Have Fallen</h2>
+        <p id="death-msg">The Norse wilds have claimed another soul...</p>
+        <button class="btn primary" onclick="location.reload()">⚔️ Try Again</button>
+    </div>
+</div>
+<div class="overlay" id="win-overlay">
+    <div class="overlay-box">
+        <h2>🏆 Valhalla Awaits!</h2>
+        <p id="win-msg">You have reached the gates of Valhalla!</p>
+        <button class="btn primary" onclick="location.reload()">🔄 Journey Again</button>
+    </div>
+</div>
+ 
+<script>
+/* ═══════════════════════════════════════════
+   VIKING TRAIL – Full Game Engine
+   ═══════════════════════════════════════════ */
+ 
+// ── State ──
+const S = {
+    hp: 100, maxHp: 100,
+    food: 20,
+    wood: 5, stone: 3, gold: 10,
+    day: 1, distance: 0, goal: 100,
+    turn: 0,
+    attack: 5, defense: 1,
+    weapon: null, armor: null, shield: null,
+    inventory: {},   // name → count
+    inCombat: false,
+    enemy: null,
+    gameOver: false,
+    biome: 'meadows',
+    visited: [],     // biomes entered
+    eventCooldown: 0,
+    potionCooldown: 0,
+};
+ 
+// ── Biomes ──
+const BIOMES = [
+    { id:'meadows',    name:'Meadows',       color:'#1a3a1a', emoji:'🌲', maxDist:20 },
+    { id:'darkforest', name:'Black Forest',   color:'#0a1a0a', emoji:'🌑', maxDist:40 },
+    { id:'swamp',      name:'Swamp',          color:'#1a2a10', emoji:'🐊', maxDist:55 },
+    { id:'mountain',   name:'Mountains',      color:'#2a2a3a', emoji:'🏔️', maxDist:75 },
+    { id:'plains',     name:'Plains',         color:'#2a2a10', emoji:'🦬', maxDist:90 },
+    { id:'mistlands',  name:'Mistlands',      color:'#1a1020', emoji:'🌫️', maxDist:100 },
+];
+ 
+function getBiome(d) {
+    for (let i = BIOMES.length-1; i >= 0; i--) {
+        if (i === 0) return BIOMES[0];
+        if (d >= BIOMES[i-1].maxDist) return BIOMES[i];
+    }
+    return BIOMES[0];
+}
+ 
+// ── Enemies per biome ──
+const ENEMIES = {
+    meadows: [
+        { name:'Boar', emoji:'🐗', hp:12, atk:3, xpGold:[0,2], drops:[['Raw Meat',1,0.8],['Leather',1,0.4]] },
+        { name:'Neck', emoji:'🦎', hp:8, atk:2, xpGold:[0,1], drops:[['Neck Tail',1,0.7]] },
+        { name:'Greyling', emoji:'👤', hp:15, atk:4, xpGold:[1,3], drops:[['Resin',1,0.6],['Wood',2,0.5]] },
+    ],
+    darkforest: [
+        { name:'Greydwarf', emoji:'👹', hp:20, atk:6, xpGold:[2,4], drops:[['Resin',2,0.6],['Stone',2,0.5],['Wood',2,0.4]] },
+        { name:'Skeleton', emoji:'💀', hp:25, atk:8, xpGold:[2,5], drops:[['Bone Fragment',2,0.7],['Gold',3,0.3]] },
+        { name:'Troll', emoji:'🧌', hp:50, atk:12, xpGold:[5,10], drops:[['Troll Hide',1,0.8],['Gold',8,0.5]] },
+    ],
+    swamp: [
+        { name:'Draugr', emoji:'🧟', hp:35, atk:10, xpGold:[3,6], drops:[['Iron Scrap',1,0.6],['Entrails',1,0.5]] },
+        { name:'Blob', emoji:'🟢', hp:28, atk:8, xpGold:[2,4], drops:[['Ooze',2,0.7]] },
+        { name:'Wraith', emoji:'👻', hp:30, atk:14, xpGold:[4,7], drops:[['Spirit Essence',1,0.4],['Gold',5,0.4]] },
+    ],
+    mountain: [
+        { name:'Wolf', emoji:'🐺', hp:40, atk:12, xpGold:[4,6], drops:[['Wolf Pelt',1,0.7],['Raw Meat',2,0.6]] },
+        { name:'Drake', emoji:'🐉', hp:35, atk:14, xpGold:[4,8], drops:[['Freeze Gland',1,0.5],['Gold',6,0.4]] },
+        { name:'Stone Golem', emoji:'🗿', hp:70, atk:16, xpGold:[6,12], drops:[['Crystal',1,0.5],['Stone',5,0.8]] },
+    ],
+    plains: [
+        { name:'Fuling', emoji:'👺', hp:45, atk:15, xpGold:[5,10], drops:[['Black Metal',1,0.6],['Gold',8,0.5]] },
+        { name:'Deathsquito', emoji:'🦟', hp:10, atk:20, xpGold:[3,5], drops:[['Needle',1,0.8]] },
+        { name:'Lox', emoji:'🦬', hp:60, atk:18, xpGold:[6,12], drops:[['Lox Meat',2,0.7],['Lox Pelt',1,0.5]] },
+    ],
+    mistlands: [
+        { name:'Seeker', emoji:'🕷️', hp:55, atk:18, xpGold:[6,12], drops:[['Carapace',1,0.6],['Gold',10,0.4]] },
+        { name:'Gjall', emoji:'🎈', hp:70, atk:22, xpGold:[8,15], drops:[['Biome Essence',1,0.4],['Gold',15,0.3]] },
+        { name:'Dvergr Rogue', emoji:'🗡️', hp:65, atk:20, xpGold:[7,14], drops:[['Dvergr Alloy',1,0.5],['Gold',12,0.4]] },
+    ],
+};
+ 
+// ── Crafting Recipes ──
+const RECIPES = [
+    { name:'Wooden Club',   type:'weapon', atk:3,  cost:{Wood:5},                        tier:1 },
+    { name:'Flint Spear',   type:'weapon', atk:6,  cost:{Wood:4,Stone:4},                tier:1 },
+    { name:'Bronze Sword',  type:'weapon', atk:10, cost:{Wood:3,Stone:3,Gold:10},         tier:2 },
+    { name:'Iron Mace',     type:'weapon', atk:15, cost:{'Iron Scrap':3,Wood:4},          tier:3 },
+    { name:'Silver Sword',  type:'weapon', atk:20, cost:{Crystal:1,'Freeze Gland':1,Gold:20}, tier:4 },
+    { name:'Black Metal Axe',type:'weapon',atk:26, cost:{'Black Metal':2,Wood:5,Gold:15}, tier:5 },
+ 
+    { name:'Leather Tunic', type:'armor',  def:2,  cost:{Leather:3,Wood:2},               tier:1 },
+    { name:'Troll Armor',   type:'armor',  def:5,  cost:{'Troll Hide':2,Leather:2},       tier:2 },
+    { name:'Iron Chainmail',type:'armor',  def:9,  cost:{'Iron Scrap':4,Gold:8},          tier:3 },
+    { name:'Wolf Cloak',    type:'armor',  def:13, cost:{'Wolf Pelt':3,Gold:12},           tier:4 },
+    { name:'Carapace Plate',type:'armor',  def:18, cost:{Carapace:3,'Dvergr Alloy':1},    tier:5 },
+ 
+    { name:'Wood Shield',   type:'shield', def:2,  cost:{Wood:6},                         tier:1 },
+    { name:'Iron Buckler',  type:'shield', def:5,  cost:{'Iron Scrap':2,Wood:3},          tier:3 },
+    { name:'Black Shield',  type:'shield', def:9,  cost:{'Black Metal':2,Gold:10},        tier:5 },
+ 
+    { name:'Health Potion',   type:'consumable', heal:30,  cost:{Ooze:1,'Neck Tail':2},       tier:2 },
+    { name:'Mead of Vigor',   type:'consumable', heal:60,  cost:{'Spirit Essence':1,Entrails:1,Gold:5}, tier:3 },
+    { name:'Cooked Meat',     type:'consumable', food:8,   cost:{'Raw Meat':2,Wood:1},        tier:1 },
+    { name:'Lox Stew',        type:'consumable', food:18,  cost:{'Lox Meat':2,Entrails:1},    tier:4 },
+];
+ 
+// ── Exploration Events ──
+function randomEvents() {
+    const b = S.biome;
+    const events = [
+        { msg:`You discover an abandoned campsite and scavenge supplies.`, food:r(2,5), wood:r(1,3), cls:'loot' },
+        { msg:`A travelling merchant offers wares. You trade stories and gain gold.`, gold:r(2,6), cls:'loot' },
+        { msg:`You forage berries and mushrooms from the path.`, food:r(3,7), cls:'loot' },
+        { msg:`You find a vein of ore and mine some stone.`, stone:r(2,5), cls:'loot' },
+        { msg:`A harsh storm rolls in. You lose supplies sheltering.`, food:-r(1,4), wood:-r(0,2), cls:'danger' },
+        { msg:`You stumble into a bog and lose provisions.`, food:-r(2,5), cls:'danger' },
+        { msg:`A fellow Viking shares mead and tales.`, hp:r(5,15), cls:'heal' },
+        { msg:`You find an old chest hidden among the roots of a great tree.`, gold:r(3,10), cls:'loot' },
+        { msg:`The trail is treacherous. You burn extra rations navigating.`, food:-r(2,4), cls:'danger' },
+        { msg:`You discover a runic stone. It glows with ancient power and restores you.`, hp:r(10,25), cls:'heal' },
+        { msg:`Raiders ambush your camp at night! You fend them off but lose resources.`, food:-r(1,3), gold:-r(1,4), hp:-r(3,10), cls:'danger' },
+        { msg:`You chop down a mighty pine. Timber aplenty!`, wood:r(3,8), cls:'loot' },
+    ];
+    if (b === 'mountain' || b === 'mistlands') {
+        events.push({ msg:'Freezing winds sap your strength.', hp:-r(5,12), food:-r(2,4), cls:'danger' });
+    }
+    if (b === 'swamp') {
+        events.push({ msg:'Poison mist seeps into your lungs.', hp:-r(4,10), cls:'danger' });
+    }
+    return events;
+}
+ 
+// ── Utility ──
+function r(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+ 
+// ── DOM helpers ──
+const $ = id => document.getElementById(id);
+function log(html, cls='') {
+    const d = document.createElement('div');
+    d.className = 'log-entry ' + cls;
+    d.innerHTML = `<span class="turn-num">[Day ${S.day} – Turn ${S.turn}]</span> ${html}`;
+    $('narrative').prepend(d);
+}
+ 
+// ── UI Update ──
+function updateUI() {
+    $('hp-val').textContent = S.hp;
+    $('hp-bar').style.width = (S.hp/S.maxHp*100)+'%';
+    $('food-val').textContent = S.food;
+    $('wood-val').textContent = S.wood;
+    $('stone-val').textContent = S.stone;
+    $('gold-val').textContent = S.gold;
+    $('day-val').textContent = S.day;
+    $('dist-val').textContent = S.distance + ' / ' + S.goal;
+ 
+    // Biome
+    const biome = getBiome(S.distance);
+    S.biome = biome.id;
+    $('biome-banner').textContent = `${biome.emoji} ${biome.name}`;
+    $('biome-banner').style.background = biome.color;
+ 
+    // Inventory
+    const ig = $('inventory-grid');
+    ig.innerHTML = '';
+    const keys = Object.keys(S.inventory).sort();
+    if (keys.length === 0) {
+        ig.innerHTML = '<p style="color:#6a6a8a;font-size:.85rem;">Your pack is empty.</p>';
+    }
+    for (const k of keys) {
+        if (S.inventory[k] <= 0) { delete S.inventory[k]; continue; }
+        const d = document.createElement('div');
+        d.className = 'inv-item';
+        d.innerHTML = `<span>${k}</span><span class="qty">×${S.inventory[k]}</span>`;
+        ig.appendChild(d);
+    }
+ 
+    // Equipment
+    const eq = $('equip-display');
+    eq.innerHTML = '';
+    const wep = S.weapon ? `⚔️ ${S.weapon.name} (+${S.weapon.atk} ATK)` : '⚔️ Fists';
+    const arm = S.armor  ? `🛡️ ${S.armor.name} (+${S.armor.def} DEF)` : '🛡️ None';
+    const sh  = S.shield ? `🔰 ${S.shield.name} (+${S.shield.def} DEF)` : '🔰 None';
+    eq.innerHTML = `
+        <div class="equip-slot ${S.weapon?'filled':''}">${wep}</div>
+        <div class="equip-slot ${S.armor?'filled':''}">${arm}</div>
+        <div class="equip-slot ${S.shield?'filled':''}">${sh}</div>
+        <br/><br/>
+        <p style="font-size:.82rem;color:#6a6a8a;">Total ATK: <b style="color:#e74c3c">${getAtk()}</b> &nbsp;|&nbsp; Total DEF: <b style="color:#5dade2">${getDef()}</b></p>
+    `;
+ 
+    // Crafting
+    renderCrafting();
+ 
+    // Map
+    drawMap();
+ 
+    // Actions
+    if (!S.inCombat) renderActions();
+}
+ 
+function getAtk(){ return S.attack + (S.weapon ? S.weapon.atk : 0); }
+function getDef(){ return S.defense + (S.armor ? S.armor.def : 0) + (S.shield ? S.shield.def : 0); }
+ 
+// ── Crafting ──
+function renderCrafting(){
+    const cl = $('craft-list');
+    cl.innerHTML = '';
+    for (const rec of RECIPES) {
+        const canCraft = canAfford(rec.cost);
+        const d = document.createElement('div');
+        d.className = 'craft-item';
+        let info = '';
+        if (rec.type === 'weapon') info = `⚔️ +${rec.atk} ATK`;
+        else if (rec.type === 'armor') info = `🛡️ +${rec.def} DEF`;
+        else if (rec.type === 'shield') info = `🔰 +${rec.def} DEF`;
+        else if (rec.heal) info = `❤️ +${rec.heal} HP`;
+        else if (rec.food) info = `🍖 +${rec.food} Food`;
+        const costStr = Object.entries(rec.cost).map(([k,v])=>`${k}:${v}`).join(', ');
+        d.innerHTML = `
+            <div>
+                <strong>${rec.name}</strong> <span style="color:#6a6a8a;font-size:.78rem;">${info}</span>
+                <div class="cost">${costStr}</div>
+            </div>
+            <button class="btn" ${canCraft?'':'disabled'} onclick="craft('${rec.name}')">Craft</button>
+        `;
+        cl.appendChild(d);
+    }
+}
+ 
+function canAfford(cost){
+    for (const [k,v] of Object.entries(cost)) {
+        const have = (['Wood','Stone','Gold','Food'].includes(k))
+            ? (k==='Wood'?S.wood:k==='Stone'?S.stone:k==='Gold'?S.gold:S.food)
+            : (S.inventory[k]||0);
+        if (have < v) return false;
+    }
+    return true;
+}
+ 
+function spendCost(cost){
+    for (const [k,v] of Object.entries(cost)) {
+        if (k==='Wood') S.wood -= v;
+        else if (k==='Stone') S.stone -= v;
+        else if (k==='Gold') S.gold -= v;
+        else if (k==='Food') S.food -= v;
+        else { S.inventory[k] = (S.inventory[k]||0)-v; if(S.inventory[k]<=0) delete S.inventory[k]; }
+    }
+}
+ 
+function craft(name){
+    const rec = RECIPES.find(r=>r.name===name);
+    if (!rec || !canAfford(rec.cost)) return;
+    spendCost(rec.cost);
+ 
+    if (rec.type === 'weapon') {
+        if (S.weapon) addItem(S.weapon.name, 1); // old to inventory (just record)
+        S.weapon = { name:rec.name, atk:rec.atk };
+        log(`🔨 Crafted <b>${rec.name}</b> (⚔️+${rec.atk} ATK) and equipped it!`, 'loot');
+    } else if (rec.type === 'armor') {
+        S.armor = { name:rec.name, def:rec.def };
+        log(`🔨 Crafted <b>${rec.name}</b> (🛡️+${rec.def} DEF) and equipped it!`, 'loot');
+    } else if (rec.type === 'shield') {
+        S.shield = { name:rec.name, def:rec.def };
+        log(`🔨 Crafted <b>${rec.name}</b> (🔰+${rec.def} DEF) and equipped it!`, 'loot');
+    } else if (rec.heal) {
+        addItem(rec.name, 1);
+        log(`🔨 Crafted <b>${rec.name}</b> — stored in inventory.`, 'loot');
+    } else if (rec.food) {
+        S.food += rec.food;
+        log(`🔨 Cooked <b>${rec.name}</b> (+${rec.food} 🍖 food).`, 'loot');
+    }
+    updateUI();
+}
+ 
+function addItem(name, qty){ S.inventory[name] = (S.inventory[name]||0)+qty; }
+function hasItem(name){ return (S.inventory[name]||0)>0; }
+function useItem(name){ if(S.inventory[name]>0){ S.inventory[name]--; if(S.inventory[name]<=0) delete S.inventory[name]; return true; } return false; }
+ 
+// ── Actions Rendering ──
+function renderActions(){
+    const a = $('actions');
+    a.innerHTML = '';
+    const btns = [
+        { label:'🚶 Travel', id:'travel', tip:'Advance along the trail (costs 2 food)', primary:true },
+        { label:'🪓 Gather', id:'gather', tip:'Gather wood & stone' },
+        { label:'🎣 Hunt / Forage', id:'hunt', tip:'Search for food' },
+        { label:'⛺ Rest', id:'rest', tip:'Rest to recover HP (costs 3 food)' },
+        { label:'🔍 Explore', id:'explore', tip:'Explore for events & loot' },
+        { label:'🧪 Use Potion', id:'potion', tip:'Use a healing potion', disabled: !(hasItem('Health Potion')||hasItem('Mead of Vigor')) },
+    ];
+    for (const b of btns) {
+        const btn = document.createElement('button');
+        btn.className = 'btn' + (b.primary?' primary':'');
+        btn.textContent = b.label;
+        btn.title = b.tip;
+        if (b.disabled) btn.disabled = true;
+        btn.onclick = () => doAction(b.id);
+        a.appendChild(btn);
+    }
+}
+ 
+// ── Core Action Handler ──
+function doAction(id){
+    if (S.gameOver || S.inCombat) return;
+    S.turn++;
+ 
+    switch(id){
+        case 'travel': actionTravel(); break;
+        case 'gather': actionGather(); break;
+        case 'hunt':   actionHunt(); break;
+        case 'rest':   actionRest(); break;
+        case 'explore':actionExplore(); break;
+        case 'potion': actionPotion(); break;
+    }
+ 
+    // Food upkeep each turn
+    S.food = Math.max(0, S.food - 1);
+    if (S.food <= 0) {
+        S.hp -= r(3,8);
+        log('😰 You have no food! Starvation gnaws at you...', 'danger');
+    }
+ 
+    // Day cycle (every 4 turns)
+    if (S.turn % 4 === 0) {
+        S.day++;
+        log(`🌅 A new day dawns — Day ${S.day}.`, 'event');
+    }
+ 
+    // Random encounter chance
+    if (!S.inCombat && Math.random() < 0.18 && S.eventCooldown <= 0) {
+        startCombat();
+    }
+ 
+    S.eventCooldown = Math.max(0, S.eventCooldown - 1);
+ 
+    // Clamp
+    S.hp = clamp(S.hp, 0, S.maxHp);
+    S.food = Math.max(0, S.food);
+    S.wood = Math.max(0, S.wood);
+    S.stone = Math.max(0, S.stone);
+    S.gold = Math.max(0, S.gold);
+ 
+    updateUI();
+    checkEnd();
+}
+ 
+function actionTravel(){
+    if (S.food < 2) { log('❌ Not enough food to travel (need 2).','danger'); return; }
+    S.food -= 1; // extra food for travel
+    const dist = r(3,7);
+    S.distance = Math.min(S.goal, S.distance + dist);
+    const biome = getBiome(S.distance);
+    log(`🚶 You travel ${dist} leagues deeper into the <b>${biome.name}</b>. (${S.distance}/${S.goal})`, 'event');
+ 
+    // Chance of encounter while travelling
+    if (Math.random() < 0.3) {
+        startCombat();
+    }
+}
+ 
+function actionGather(){
+    const w = r(2,5);
+    const s = r(1,4);
+    S.wood += w;
+    S.stone += s;
+    log(`🪓 You gather <b>${w}</b> wood and <b>${s}</b> stone.`, 'loot');
+}
+ 
+function actionHunt(){
+    if (Math.random() < 0.7) {
+        const f = r(3,8);
+        S.food += f;
+        log(`🎣 Hunting is successful! You gain <b>${f}</b> food.`, 'loot');
+        // May find extra
+        if (Math.random() < 0.3) {
+            addItem('Raw Meat', r(1,2));
+            log('🥩 You also collect some <b>Raw Meat</b>.', 'loot');
+        }
+    } else {
+        log('🎣 The hunt yields nothing this time.', 'event');
+    }
+}
+ 
+function actionRest(){
+    if (S.food < 3) { log('❌ Not enough food to rest (need 3).','danger'); return; }
+    S.food -= 2;
+    const heal = r(10,25);
+    S.hp = clamp(S.hp + heal, 0, S.maxHp);
+    log(`⛺ You rest by the campfire and recover <b>${heal}</b> HP.`, 'heal');
+}
+ 
+function actionExplore(){
+    const evts = randomEvents();
+    const evt = pick(evts);
+    log(evt.msg, evt.cls || 'event');
+    if (evt.food) S.food += evt.food;
+    if (evt.wood) S.wood += evt.wood;
+    if (evt.stone) S.stone += evt.stone;
+    if (evt.gold) S.gold += evt.gold;
+    if (evt.hp) S.hp = clamp(S.hp + evt.hp, 0, S.maxHp);
+    S.eventCooldown = 1;
+}
+ 
+function actionPotion(){
+    if (useItem('Mead of Vigor')) {
+        const heal = 60;
+        S.hp = clamp(S.hp + heal, 0, S.maxHp);
+        log(`🧪 You drink a <b>Mead of Vigor</b> and restore <b>${heal}</b> HP!`, 'heal');
+    } else if (useItem('Health Potion')) {
+        const heal = 30;
+        S.hp = clamp(S.hp + heal, 0, S.maxHp);
+        log(`🧪 You drink a <b>Health Potion</b> and restore <b>${heal}</b> HP!`, 'heal');
+    } else {
+        log('❌ No healing potions available.', 'danger');
+    }
+}
+ 
+// ── Combat ──
+function startCombat(){
+    S.inCombat = true;
+    const enemies = ENEMIES[S.biome] || ENEMIES.meadows;
+    const template = pick(enemies);
+    S.enemy = {
+        name: template.name,
+        emoji: template.emoji,
+        hp: template.hp,
+        maxHp: template.hp,
+        atk: template.atk,
+        xpGold: template.xpGold,
+        drops: template.drops,
+    };
+    log(`⚔️ A wild <b>${S.enemy.emoji} ${S.enemy.name}</b> appears!`, 'combat');
+    $('combat-panel').classList.add('show');
+    $('action-panel').style.display = 'none';
+    renderCombatUI();
+}
+ 
+function renderCombatUI(){
+    const e = S.enemy;
+    $('enemy-emoji').textContent = e.emoji;
+    $('enemy-name').textContent = e.name;
+    $('enemy-hp-text').textContent = `${Math.max(0,e.hp)} / ${e.maxHp}`;
+    $('enemy-hp-bar').style.width = (Math.max(0,e.hp)/e.maxHp*100)+'%';
+ 
+    const ca = $('combat-actions');
+    ca.innerHTML = '';
+    const actions = [
+        { label:'⚔️ Attack', id:'c-attack' },
+        { label:'🛡️ Defend', id:'c-defend' },
+        { label:'🧪 Potion', id:'c-potion', disabled:!(hasItem('Health Potion')||hasItem('Mead of Vigor')) },
+        { label:'🏃 Flee', id:'c-flee' },
+    ];
+    for (const a of actions) {
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.textContent = a.label;
+        if (a.disabled) btn.disabled = true;
+        btn.onclick = () => combatAction(a.id);
+        ca.appendChild(btn);
+    }
+}
+ 
+function combatAction(id){
+    if (!S.inCombat || !S.enemy) return;
+    S.turn++;
+ 
+    const pAtk = getAtk();
+    const pDef = getDef();
+    const e = S.enemy;
+ 
+    switch(id){
+        case 'c-attack': {
+            const dmg = Math.max(1, pAtk + r(-2,3));
+            e.hp -= dmg;
+            log(`⚔️ You strike the <b>${e.name}</b> for <b>${dmg}</b> damage!`, 'combat');
+            break;
+        }
+        case 'c-defend': {
+            // Defend: halve incoming damage this turn
+            const rawDmg = Math.max(1, e.atk - pDef + r(-2,2));
+            const dmg = Math.max(1, Math.floor(rawDmg / 3));
+            S.hp -= dmg;
+            log(`🛡️ You brace yourself! The ${e.name} hits for only <b>${dmg}</b> damage.`, 'combat');
+            S.hp = clamp(S.hp, 0, S.maxHp);
+            updateUI();
+            renderCombatUI();
+            checkEnd();
+            return; // skip normal enemy turn
+        }
+        case 'c-potion':
+            if (useItem('Mead of Vigor')) {
+                S.hp = clamp(S.hp + 60, 0, S.maxHp);
+                log(`🧪 You drink <b>Mead of Vigor</b> mid-combat! +60 HP`, 'heal');
+            } else if (useItem('Health Potion')) {
+                S.hp = clamp(S.hp + 30, 0, S.maxHp);
+                log(`🧪 You drink a <b>Health Potion</b> mid-combat! +30 HP`, 'heal');
+            }
+            break;
+        case 'c-flee': {
+            if (Math.random() < 0.5) {
+                log(`🏃 You flee from the ${e.name}!`, 'event');
+                endCombat(false);
+                return;
+            } else {
+                log(`🏃 You try to flee but the ${e.name} blocks your path!`, 'danger');
+            }
+            break;
+        }
+    }
+ 
+    // Check enemy dead
+    if (e.hp <= 0) {
+        endCombat(true);
+        return;
+    }
+ 
+    // Enemy attacks
+    const eDmg = Math.max(1, e.atk - pDef + r(-2,3));
+    S.hp -= eDmg;
+    log(`${e.emoji} The <b>${e.name}</b> strikes you for <b>${eDmg}</b> damage!`, 'combat');
+ 
+    S.hp = clamp(S.hp, 0, S.maxHp);
+    updateUI();
+    renderCombatUI();
+    checkEnd();
+}
+ 
+function endCombat(won){
+    S.inCombat = false;
+    $('combat-panel').classList.remove('show');
+    $('action-panel').style.display = '';
+ 
+    if (won && S.enemy) {
+        const e = S.enemy;
+        const goldGain = r(e.xpGold[0], e.xpGold[1]);
+        S.gold += goldGain;
+        log(`🏆 You defeated the <b>${e.emoji} ${e.name}</b>! Gained <b>${goldGain}</b> gold.`, 'loot');
+ 
+        // Drops
+        for (const [item, qty, chance] of e.drops) {
+            if (Math.random() < chance) {
+                if (item === 'Wood') S.wood += qty;
+                else if (item === 'Stone') S.stone += qty;
+                else if (item === 'Gold') S.gold += qty;
+                else if (item === 'Raw Meat') S.food += qty * 2;
+                else if (item === 'Lox Meat') { addItem(item, qty); }
+                else addItem(item, qty);
+                log(`  ✦ Looted <b>${qty}× ${item}</b>`, 'loot');
+            }
+        }
+    }
+    S.enemy = null;
+    updateUI();
+}
+ 
+// ── Mini Map ──
+function drawMap(){
+    const c = $('map-canvas');
+    const ctx = c.getContext('2d');
+    const W = c.width, H = c.height;
+    ctx.clearRect(0,0,W,H);
+ 
+    // Biome segments
+    for (let i = 0; i < BIOMES.length; i++) {
+        const start = i === 0 ? 0 : BIOMES[i-1].maxDist;
+        const end = BIOMES[i].maxDist;
+        const x1 = (start/S.goal)*W;
+        const x2 = (end/S.goal)*W;
+        ctx.fillStyle = BIOMES[i].color;
+        ctx.fillRect(x1, 0, x2-x1, H);
+        // Label
+        ctx.fillStyle = '#6a6a8a';
+        ctx.font = '9px Cinzel';
+        ctx.textAlign = 'center';
+        ctx.fillText(BIOMES[i].emoji + ' ' + BIOMES[i].name, (x1+x2)/2, H-6);
+        // Border
+        ctx.strokeStyle = '#2a2a4a';
+        ctx.strokeRect(x1, 0, x2-x1, H);
+    }
+ 
+    // Player marker
+    const px = (S.distance / S.goal) * W;
+    ctx.fillStyle = '#f0d060';
+    ctx.beginPath();
+    ctx.arc(px, H/2 - 4, 7, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.font = '10px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚔', px, H/2 - 1);
+ 
+    // Goal marker
+    ctx.fillStyle = '#f0d060';
+    ctx.font = '14px serif';
+    ctx.fillText('🏰', W - 14, H/2 + 2);
+}
+ 
+// ── Tabs ──
+function showTab(id){
+    document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    $('tab-'+id).classList.add('active');
+    event.target.classList.add('active');
+}
+ 
+// ── Win / Lose ──
+function checkEnd(){
+    if (S.hp <= 0 && !S.gameOver) {
+        S.gameOver = true;
+        $('death-overlay').classList.add('show');
+        $('death-msg').innerHTML = `You survived <b>${S.day}</b> days and traveled <b>${S.distance}</b> leagues.<br>The Valkyries will not carry you this day...`;
+    }
+    if (S.distance >= S.goal && !S.gameOver) {
+        S.gameOver = true;
+        $('win-overlay').classList.add('show');
+        $('win-msg').innerHTML = `
+            After <b>${S.day}</b> days and countless battles, you reach the gates of <b>Valhalla</b>!<br>
+            Remaining: ❤️${S.hp} HP | 🍖${S.food} Food | 💰${S.gold} Gold<br><br>
+            <em>Skål, brave warrior! Your saga will be sung for eternity.</em>
+        `;
+    }
+}
+ 
+// ── Init ──
+function init(){
+    log('🌅 You awaken on the shores of the Meadows. The road to <b>Valhalla</b> stretches before you — 100 leagues of danger, discovery, and glory.', 'event');
+    log('💡 <em>Tip: Gather resources, craft weapons & armor, manage food, and travel to reach Valhalla before the wilds consume you!</em>', 'event');
+    updateUI();
+}
+ 
+init();
+</script>
+</body>
+</html>

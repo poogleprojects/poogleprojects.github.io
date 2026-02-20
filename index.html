@@ -315,6 +315,7 @@
 // ==============================
 const NUM_PLAYERS = 2;
 const MAX_TURNS = 10;
+const STARTING_COINS = 3;
 const PLAYER_COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12'];
 const PLAYER_NAMES = ['Player 1 🔴','Player 2 🔵','Player 3 🟢','Player 4 🟡'];
 const PLAYER_BG = ['rgba(231,76,60,.25)','rgba(52,152,219,.25)','rgba(46,204,113,.25)','rgba(243,156,18,.25)'];
@@ -379,12 +380,10 @@ function buildMap() {
     for (let c = 0; c < COLS; c++) {
       const x = OFFSET_X + c * HEX_W + (r % 2) * (HEX_W / 2);
       const y = OFFSET_Y + r * HEX_H * 0.82;
-      // Edge regions have chance of water
       const isEdge = r === 0 || r === ROWS - 1 || c === 0 || c === COLS - 1;
       let terrain;
       if (isEdge && Math.random() < 0.25) terrain = 'water';
       else terrain = terrainKeys[Math.floor(Math.random() * terrainKeys.length)];
-      // Hex points
       const hw = HEX_W / 2, hh = HEX_H / 2;
       const pts = [
         [x + hw * 0.5, y - hh],
@@ -394,7 +393,6 @@ function buildMap() {
         [x - hw * 0.3, y + hh * 0.35],
         [x - hw * 0.3, y - hh * 0.35],
       ];
-      // Jitter for organic feel
       const jitteredPts = pts.map(([px, py]) => [
         px + (Math.random() - 0.5) * 10,
         py + (Math.random() - 0.5) * 8
@@ -402,7 +400,7 @@ function buildMap() {
       regions.push({
         id, row: r, col: c, terrain, points: jitteredPts,
         cx: x + hw * 0.5, cy: y,
-        owner: -1, tokens: terrain === 'mountain' ? 1 : 0, // mountains start with 1 "lost tribe"
+        owner: -1, tokens: terrain === 'mountain' ? 1 : 0,
         hasLostTribe: terrain !== 'water' && terrain !== 'mountain' ? (Math.random() < 0.35 ? true : false) : (terrain === 'mountain'),
         hasFortress: false,
         isEdge
@@ -410,9 +408,7 @@ function buildMap() {
       id++;
     }
   }
-  // If lost tribe, set tokens = 1
   regions.forEach(reg => { if (reg.hasLostTribe && reg.tokens === 0) reg.tokens = 1; });
-  // Build adjacency
   regions.forEach(reg => { adjacency[reg.id] = []; });
   for (let i = 0; i < regions.length; i++) {
     for (let j = i + 1; j < regions.length; j++) {
@@ -432,7 +428,7 @@ function buildMap() {
 let state = {
   turn: 1,
   currentPlayer: 0,
-  phase: 'pick', // pick | conquer | redeploy | done
+  phase: 'pick', // pick | conquer | redeploy | final_conquest | done
   players: [],
   comboPool: [],
   conqueredThisTurn: 0,
@@ -448,7 +444,7 @@ function initPlayers() {
   for (let i = 0; i < NUM_PLAYERS; i++) {
     state.players.push({
       id: i,
-      coins: 0,
+      coins: STARTING_COINS,
       activeRace: null,
       activePower: null,
       activeTokens: 0,
@@ -460,7 +456,6 @@ function initPlayers() {
 }
  
 function generateComboPool() {
-  // Shuffle and pick 6 combos
   const shuffledRaces = [...RACES].sort(() => Math.random() - 0.5);
   const shuffledPowers = [...POWERS].sort(() => Math.random() - 0.5);
   state.comboPool = [];
@@ -480,7 +475,6 @@ const mapSvg = document.getElementById('mapSvg');
 const comboListEl = document.getElementById('comboList');
 const scoreboardEl = document.getElementById('scoreboard');
 const logEl = document.getElementById('log');
-const infoBar = document.getElementById('infoBar');
 const turnBadge = document.getElementById('turnBadge');
 const playerIndicator = document.getElementById('playerIndicator');
 const phaseLabel = document.getElementById('phaseLabel');
@@ -492,7 +486,6 @@ const legendEl = document.getElementById('legend');
  
 function renderMap() {
   mapSvg.innerHTML = '';
-  // Water background
   const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
   bg.setAttribute('width','720'); bg.setAttribute('height','520');
   bg.setAttribute('fill','#b2bec3'); bg.setAttribute('rx','12');
@@ -505,17 +498,15 @@ function renderMap() {
  
     let fill = TERRAINS[reg.terrain].color;
     if (reg.owner >= 0) {
-      // Blend player color with terrain
       fill = blendColors(TERRAINS[reg.terrain].color, PLAYER_COLORS[reg.owner], 0.45);
     }
     poly.setAttribute('fill', fill);
     poly.classList.add('region');
     if (state.selectedRegion === reg.id) poly.classList.add('selected');
     poly.dataset.id = reg.id;
-    poly.addEventListener('click', () => onRegionClick(reg.id));
+    poly.addEventListener('click', () => handleRegionClick(reg.id));
     g.appendChild(poly);
  
-    // Terrain emoji
     const label = document.createElementNS('http://www.w3.org/2000/svg','text');
     label.setAttribute('x', reg.cx); label.setAttribute('y', reg.cy - 12);
     label.classList.add('region-label');
@@ -523,9 +514,7 @@ function renderMap() {
     label.style.fontSize = '14px';
     g.appendChild(label);
  
-    // Token count / owner
     if (reg.owner >= 0 && reg.tokens > 0) {
-      // Circle bg
       const circ = document.createElementNS('http://www.w3.org/2000/svg','circle');
       circ.setAttribute('cx', reg.cx); circ.setAttribute('cy', reg.cy + 10);
       circ.setAttribute('r', 12);
@@ -539,7 +528,6 @@ function renderMap() {
       txt.textContent = reg.tokens;
       g.appendChild(txt);
     } else if (reg.hasLostTribe && reg.owner < 0) {
-      // Lost tribe indicator
       const txt = document.createElementNS('http://www.w3.org/2000/svg','text');
       txt.setAttribute('x', reg.cx); txt.setAttribute('y', reg.cy + 12);
       txt.classList.add('region-label');
@@ -563,13 +551,16 @@ function renderMap() {
 function renderCombos() {
   comboListEl.innerHTML = '';
   const p = currentPlayer();
+  const needsCombo = p.activeRace === null;
+  const inPickPhase = state.phase === 'pick';
+ 
   state.comboPool.forEach((combo, idx) => {
     const card = document.createElement('div');
     card.className = 'combo-card';
-    const cost = idx; // First is free, then 1 coin, 2 coins...
+    const cost = idx;
     const canAfford = p.coins >= cost;
-    const needsCombo = p.activeRace === null;
-    if (!needsCombo || !canAfford || state.phase !== 'pick') card.classList.add('disabled-card');
+    const isClickable = needsCombo && canAfford && inPickPhase;
+    if (!isClickable) card.classList.add('disabled-card');
     card.innerHTML = `
       <span class="emoji">${combo.race.emoji}</span>
       <div class="details">
@@ -581,7 +572,7 @@ function renderCombos() {
       ${cost > 0 ? `<span class="coin-cost">💰 ${cost}</span>` : ''}
       ${combo.coinsOnCard > 0 ? `<span class="coins-on">+${combo.coinsOnCard} 💰</span>` : ''}
     `;
-    if (needsCombo && canAfford && state.phase === 'pick') {
+    if (isClickable) {
       card.addEventListener('click', () => pickCombo(idx));
     }
     comboListEl.appendChild(card);
@@ -613,20 +604,36 @@ function renderScoreboard() {
  
 function renderInfoBar() {
   turnBadge.textContent = `Turn ${state.turn} / ${MAX_TURNS}`;
-  const p = currentPlayer();
   playerIndicator.textContent = PLAYER_NAMES[state.currentPlayer];
   playerIndicator.style.background = PLAYER_BG[state.currentPlayer];
   playerIndicator.style.border = `2px solid ${PLAYER_BORDER[state.currentPlayer]}`;
-  const phaseNames = { pick: '🎴 Pick a Race', conquer: '⚔️ Conquer', redeploy: '🔄 Redeploy Tokens', done: '✅ Done' };
+  const phaseNames = {
+    pick: '🎴 Pick a Race',
+    conquer: '⚔️ Conquer',
+    redeploy: '🔄 Redeploy Tokens',
+    final_conquest: '🎲 Final Conquest — Click a Region!',
+    done: '✅ Done'
+  };
   phaseLabel.textContent = `Phase: ${phaseNames[state.phase] || state.phase}`;
 }
  
 function renderButtons() {
   const p = currentPlayer();
-  btnDecline.disabled = !(state.phase === 'pick' && p.activeRace !== null);
-  btnEndTurn.disabled = state.phase === 'pick' || state.phase === 'done';
+  // DECLINE: available when you have an active race during pick OR conquer phase
+  // During pick phase: you already have a race and want to decline it before picking a new one
+  // During conquer phase: you want to decline mid-turn (ends your conquering)
+  const canDecline = p.activeRace !== null && !p.hasDeclinedThisTurn &&
+    (state.phase === 'conquer' || state.phase === 'pick');
+  btnDecline.disabled = !canDecline;
+ 
+  // END TURN: available during conquer or redeploy
+  btnEndTurn.disabled = !(state.phase === 'conquer' || state.phase === 'redeploy');
+ 
+  // REDEPLOY: available during conquer phase
   btnRedeploy.disabled = state.phase !== 'conquer';
-  btnLastDie.disabled = !(state.phase === 'conquer' && !state.usedFinalDie && state.conqueredThisTurn > 0);
+ 
+  // FINAL DIE: available during conquer if not used yet and conquered at least once
+  btnLastDie.disabled = !(state.phase === 'conquer' && !state.usedFinalDie);
 }
  
 function renderLegend() {
@@ -665,18 +672,17 @@ function getPlayerRegions(pid) { return regions.filter(r => r.owner === pid); }
  
 function isAdjacentToOwned(regId, pid) {
   const owned = getPlayerRegions(pid);
-  if (owned.length === 0) return regions[regId].isEdge; // First conquest must be border
+  if (owned.length === 0) return regions[regId].isEdge;
   return adjacency[regId].some(adj => regions[adj].owner === pid);
 }
  
 function conquestCost(regId) {
   const reg = regions[regId];
-  let cost = 2; // Base
-  cost += reg.tokens; // Defenders
+  let cost = 2;
+  cost += reg.tokens;
   if (reg.hasLostTribe && reg.owner < 0) cost += 1;
   if (reg.terrain === 'mountain') cost += 1;
   if (reg.hasFortress) cost += 1;
-  // Troll defense
   if (reg.owner >= 0) {
     const defender = state.players[reg.owner];
     if (defender.activeRace && defender.activeRace.name === 'Trolls') cost += 1;
@@ -689,7 +695,6 @@ function applyPowerModifier(cost, regId, player) {
   if (player.activePower) {
     if (player.activePower.name === 'Commando') cost -= 1;
     if (player.activePower.name === 'Mounted' && (reg.terrain === 'hill' || reg.terrain === 'farmland')) cost -= 1;
-    if (player.activePower.name === 'Hill' && reg.terrain === 'hill') cost -= 0; // scoring only
   }
   if (player.activeRace) {
     if (player.activeRace.name === 'Halflings' && state.firstConquests < 2) cost -= 1;
@@ -713,7 +718,6 @@ function pickCombo(idx) {
   const cost = idx;
   if (p.coins < cost) return;
  
-  // Pay cost; coins go on skipped combos
   p.coins -= cost;
   for (let i = 0; i < idx; i++) {
     state.comboPool[i].coinsOnCard += 1;
@@ -723,14 +727,12 @@ function pickCombo(idx) {
   p.activeRace = combo.race;
   p.activePower = combo.power;
   p.activeTokens = combo.race.base + combo.power.tokens;
-  p.coins += combo.coinsOnCard; // Collect coins on the card
+  p.coins += combo.coinsOnCard;
  
-  // Wealthy bonus
   if (combo.power.name === 'Wealthy') p.coins += 7;
  
   addLog(`${PLAYER_NAMES[p.id]} picked <b>${combo.power.emoji} ${combo.power.name} ${combo.race.emoji} ${combo.race.name}</b> (${p.activeTokens} tokens)`);
  
-  // Refill combo pool
   refillComboPool();
  
   state.phase = 'conquer';
@@ -747,7 +749,6 @@ function refillComboPool() {
   while (state.comboPool.length < 6) {
     const race = allRaces[state.comboPool.length % allRaces.length];
     const power = allPowers[state.comboPool.length % allPowers.length];
-    // Make sure we don't duplicate exact combos
     state.comboPool.push({ race, power, coinsOnCard: 0 });
   }
 }
@@ -758,18 +759,21 @@ function declineRace() {
  
   addLog(`${PLAYER_NAMES[p.id]} put <b>${p.activeRace.emoji} ${p.activeRace.name}</b> in decline!`);
  
-  // Remove old declined regions
+  // Remove old declined regions first
   if (p.declinedRace) {
-    regions.forEach(r => {
-      if (p.declinedRegions.includes(r.id)) {
+    p.declinedRegions.forEach(rid => {
+      const r = regions[rid];
+      if (r.owner === p.id) {
         r.owner = -1;
         r.tokens = 0;
       }
     });
+    p.declinedRegions = [];
   }
  
-  // Current regions become declined (keep 1 token each)
-  p.declinedRegions = getPlayerRegions(p.id).map(r => r.id);
+  // Current active regions become declined (keep 1 token each)
+  const currentRegions = getPlayerRegions(p.id);
+  p.declinedRegions = currentRegions.map(r => r.id);
   p.declinedRegions.forEach(rid => { regions[rid].tokens = 1; });
  
   p.declinedRace = p.activeRace;
@@ -778,20 +782,100 @@ function declineRace() {
   p.activeTokens = 0;
   p.hasDeclinedThisTurn = true;
  
-  state.phase = 'pick';
+  // Declining ends your turn — score income then advance
+  scoreIncome(p);
+  advanceToNextPlayer();
+}
+ 
+function scoreIncome(p) {
+  let income = 0;
+  const ownedRegions = getPlayerRegions(p.id);
+  income += ownedRegions.length;
+ 
+  // Race bonuses (from active race — but after decline, activeRace is null, so this is 0)
+  if (p.activeRace) {
+    if (p.activeRace.name === 'Dwarves') income += ownedRegions.filter(r => r.terrain === 'mountain').length;
+    if (p.activeRace.name === 'Humans') income += ownedRegions.filter(r => r.terrain === 'farmland').length;
+    if (p.activeRace.name === 'Wizards') income += ownedRegions.filter(r => r.terrain === 'magic').length;
+    if (p.activeRace.name === 'Orcs') income += state.conqueredThisTurn;
+  }
+ 
+  // Power bonuses
+  if (p.activePower) {
+    if (p.activePower.name === 'Forest') income += ownedRegions.filter(r => r.terrain === 'forest').length;
+    if (p.activePower.name === 'Swamp') income += ownedRegions.filter(r => r.terrain === 'swamp').length;
+    if (p.activePower.name === 'Hill') income += ownedRegions.filter(r => r.terrain === 'hill').length;
+    if (p.activePower.name === 'Pillaging') income += state.pillageCount;
+    if (p.activePower.name === 'Fortified') income += ownedRegions.filter(r => r.hasFortress).length;
+  }
+ 
+  // Declined region income (1 per declined region still owned)
+  if (p.declinedRace) {
+    const declinedOwned = regions.filter(r => p.declinedRegions.includes(r.id) && r.owner === p.id);
+    income += declinedOwned.length;
+  }
+ 
+  p.coins += income;
+  addLog(`💰 ${PLAYER_NAMES[p.id]} earns ${income} coins! (Total: ${p.coins})`);
+ 
+  // Fortified: place fortress
+  if (p.activePower && p.activePower.name === 'Fortified') {
+    const noFort = ownedRegions.filter(r => !r.hasFortress);
+    if (noFort.length > 0) {
+      const pick = noFort[Math.floor(Math.random() * noFort.length)];
+      pick.hasFortress = true;
+      addLog(`🏰 Fortress placed in region ${pick.id}!`);
+    }
+  }
+}
+ 
+function advanceToNextPlayer() {
+  state.currentPlayer = (state.currentPlayer + 1) % NUM_PLAYERS;
+ 
+  if (state.currentPlayer === 0) {
+    state.turn++;
+    if (state.turn > MAX_TURNS) {
+      endGame();
+      return;
+    }
+  }
+ 
+  const next = currentPlayer();
+  next.hasDeclinedThisTurn = false;
+  state.conqueredThisTurn = 0;
+  state.pillageCount = 0;
+  state.firstConquests = 0;
+  state.usedFinalDie = false;
+  state.selectedRegion = -1;
+ 
+  if (next.activeRace) {
+    // Gather tokens: pick up all but 1 from each region
+    let gather = next.activeTokens;
+    getPlayerRegions(next.id).forEach(r => {
+      if (r.tokens > 1) {
+        gather += r.tokens - 1;
+        r.tokens = 1;
+      }
+    });
+    next.activeTokens = gather;
+    state.phase = 'conquer';
+    addLog(`${PLAYER_NAMES[next.id]}'s turn! ${next.activeRace.emoji} ${next.activeRace.name} with ${next.activeTokens} tokens.`);
+  } else {
+    state.phase = 'pick';
+    addLog(`${PLAYER_NAMES[next.id]}'s turn! Pick a race.`);
+  }
+ 
   renderAll();
 }
  
-function onRegionClick(regId) {
-  const reg = regions[regId];
-  const p = currentPlayer();
- 
-  if (state.phase === 'conquer') {
+function handleRegionClick(regId) {
+  if (state.phase === 'final_conquest') {
+    attemptFinalConquest(regId);
+  } else if (state.phase === 'conquer') {
     attemptConquest(regId);
   } else if (state.phase === 'redeploy') {
     attemptRedeploy(regId);
   } else {
-    // Just select for info
     state.selectedRegion = regId;
     renderAll();
   }
@@ -801,17 +885,13 @@ function attemptConquest(regId) {
   const reg = regions[regId];
   const p = currentPlayer();
  
-  // Can't conquer water
   if (reg.terrain === 'water') { addLog('❌ Cannot conquer water!'); return; }
-  // Can't conquer own region
   if (reg.owner === p.id) { addLog('❌ You already own this region!'); return; }
  
-  // Adjacency check (unless flying or first conquest on border)
   if (!canFly(p) && !isAdjacentToOwned(regId, p.id)) {
     addLog('❌ Must conquer adjacent region (or border if first)!');
     return;
   }
-  // Flying: first must still be border if no regions owned
   if (canFly(p) && getPlayerRegions(p.id).length === 0 && !reg.isEdge) {
     addLog('❌ First conquest must be a border region!');
     return;
@@ -825,20 +905,16 @@ function attemptConquest(regId) {
     return;
   }
  
-  // Success!
   const defenderId = reg.owner;
   const wasNonEmpty = reg.tokens > 0 || reg.hasLostTribe;
  
-  // Defender loses tokens
   if (defenderId >= 0) {
     const defender = state.players[defenderId];
     let lostTokens = reg.tokens;
-    // Elves get tokens back
     if (defender.activeRace && defender.activeRace.name === 'Elves') {
       defender.activeTokens += lostTokens;
       addLog(`🧝 Elves recover ${lostTokens} tokens!`);
     } else {
-      // 1 token returned to hand, rest lost
       if (lostTokens > 0) defender.activeTokens += Math.max(0, lostTokens - 1);
     }
   }
@@ -852,10 +928,8 @@ function attemptConquest(regId) {
   state.conqueredThisTurn++;
   state.firstConquests++;
  
-  // Pillaging
   if (wasNonEmpty) state.pillageCount++;
  
-  // Skeletons bonus
   if (p.activeRace && p.activeRace.name === 'Skeletons' && state.conqueredThisTurn % 2 === 0) {
     p.activeTokens += 1;
     addLog(`💀 Skeletons gain a bonus token!`);
@@ -869,27 +943,8 @@ function attemptConquest(regId) {
 function attemptFinalDie() {
   if (state.usedFinalDie) return;
   state.usedFinalDie = true;
-  const p = currentPlayer();
- 
-  // Pick a target
-  // Find all conquerable regions
-  const targets = regions.filter(r => {
-    if (r.terrain === 'water' || r.owner === p.id) return false;
-    if (canFly(p)) return true;
-    return isAdjacentToOwned(r.id, p.id);
-  });
- 
-  if (targets.length === 0) {
-    addLog('🎲 No valid targets for final conquest!');
-    renderAll();
-    return;
-  }
- 
-  showModal('🎲 Final Conquest', 'Click a region to attempt final conquest with dice!<br>You have ' + p.activeTokens + ' tokens + dice roll (0-3).', [
-    { text: 'Cancel', class: 'btn btn-danger', action: () => { state.usedFinalDie = false; hideModal(); } }
-  ]);
- 
   state.phase = 'final_conquest';
+  addLog('🎲 Click a region for your Final Conquest attempt!');
   renderAll();
 }
  
@@ -897,18 +952,23 @@ function attemptFinalConquest(regId) {
   const reg = regions[regId];
   const p = currentPlayer();
  
-  if (reg.terrain === 'water' || reg.owner === p.id) return;
-  if (!canFly(p) && !isAdjacentToOwned(regId, p.id)) return;
+  if (reg.terrain === 'water' || reg.owner === p.id) {
+    addLog('❌ Invalid target for final conquest.');
+    return;
+  }
+  if (!canFly(p) && !isAdjacentToOwned(regId, p.id)) {
+    addLog('❌ Must be adjacent to your territory!');
+    return;
+  }
  
   const roll = Math.floor(Math.random() * 4); // 0, 1, 2, or 3
   let cost = conquestCost(regId);
   cost = applyPowerModifier(cost, regId, p);
  
   const effective = p.activeTokens + roll;
-  addLog(`🎲 Rolled ${roll}! Effective strength: ${effective} vs cost ${cost}`);
+  addLog(`🎲 Rolled <b>${roll}</b>! Strength: ${p.activeTokens} + ${roll} = ${effective} vs cost ${cost}`);
  
   if (effective >= cost) {
-    // Conquer with all remaining tokens
     const defenderId = reg.owner;
     if (defenderId >= 0) {
       const defender = state.players[defenderId];
@@ -928,18 +988,20 @@ function attemptFinalConquest(regId) {
     if (reg.tokens > 0) state.pillageCount++;
     addLog(`✅ Final conquest of region ${regId} succeeded!`);
   } else {
-    addLog(`❌ Final conquest failed!`);
+    addLog(`❌ Final conquest of region ${regId} failed! (needed ${cost}, had ${effective})`);
   }
  
-  hideModal();
   state.phase = 'conquer';
   renderAll();
 }
  
 function startRedeploy() {
   const p = currentPlayer();
-  // Pick up all tokens from owned regions
   const ownedRegions = getPlayerRegions(p.id);
+  if (ownedRegions.length === 0) {
+    addLog('⚠️ You have no regions to redeploy to!');
+    return;
+  }
   let totalTokens = p.activeTokens;
   ownedRegions.forEach(r => {
     totalTokens += r.tokens;
@@ -947,7 +1009,7 @@ function startRedeploy() {
   });
   p.activeTokens = totalTokens;
   state.phase = 'redeploy';
-  addLog(`🔄 ${PLAYER_NAMES[p.id]} is redeploying ${totalTokens} tokens...`);
+  addLog(`🔄 ${PLAYER_NAMES[p.id]} is redeploying ${totalTokens} tokens. Click your regions to place them.`);
   renderAll();
 }
  
@@ -968,124 +1030,62 @@ function attemptRedeploy(regId) {
   p.activeTokens -= 1;
   addLog(`Placed 1 token on region ${regId}. ${p.activeTokens} remaining.`);
  
-  // Auto-finish when 0 tokens left
   if (p.activeTokens <= 0) {
-    finishRedeploy();
+    state.phase = 'conquer';
+    addLog(`✅ Redeployment complete!`);
   }
   renderAll();
 }
  
-function finishRedeploy() {
-  const p = currentPlayer();
-  // Make sure all owned regions have at least 1
-  const empty = getPlayerRegions(p.id).filter(r => r.tokens === 0);
-  if (empty.length > 0 && p.activeTokens > 0) {
-    addLog('⚠️ Some regions are empty! Place tokens there first.');
-    return;
+function autoRedeploy(p) {
+  // Distribute all remaining tokens across owned regions
+  const owned = getPlayerRegions(p.id);
+  if (owned.length === 0) return;
+ 
+  // Pick up all tokens
+  let totalTokens = p.activeTokens;
+  owned.forEach(r => {
+    totalTokens += r.tokens;
+    r.tokens = 0;
+  });
+ 
+  // Place 1 on each region first
+  owned.forEach(r => {
+    if (totalTokens > 0) { r.tokens = 1; totalTokens--; }
+  });
+ 
+  // Distribute remaining evenly, extras on first regions
+  let idx = 0;
+  while (totalTokens > 0) {
+    owned[idx % owned.length].tokens++;
+    totalTokens--;
+    idx++;
   }
-  // Abandon empty regions
-  getPlayerRegions(p.id).forEach(r => {
+ 
+  // Abandon any regions that ended up with 0 tokens
+  owned.forEach(r => {
     if (r.tokens === 0) {
       r.owner = -1;
-      addLog(`Region ${r.id} abandoned (no tokens).`);
+      addLog(`Region ${r.id} abandoned.`);
     }
   });
-  state.phase = 'conquer';
-  addLog(`✅ Redeployment complete.`);
-  renderAll();
+ 
+  p.activeTokens = 0;
 }
  
 function endTurn() {
   const p = currentPlayer();
  
-  // Score phase
-  let income = 0;
-  const ownedRegions = getPlayerRegions(p.id);
-  income += ownedRegions.length; // 1 per region
- 
-  // Race bonuses
-  if (p.activeRace) {
-    if (p.activeRace.name === 'Dwarves') {
-      income += ownedRegions.filter(r => r.terrain === 'mountain').length;
-    }
-    if (p.activeRace.name === 'Humans') {
-      income += ownedRegions.filter(r => r.terrain === 'farmland').length;
-    }
-    if (p.activeRace.name === 'Wizards') {
-      income += ownedRegions.filter(r => r.terrain === 'magic').length;
-    }
-    if (p.activeRace.name === 'Orcs') {
-      income += state.conqueredThisTurn;
-    }
+  // Auto-redeploy if in conquer or redeploy phase with tokens remaining
+  if (state.phase === 'conquer' || state.phase === 'redeploy') {
+    autoRedeploy(p);
   }
  
-  // Power bonuses
-  if (p.activePower) {
-    if (p.activePower.name === 'Forest') income += ownedRegions.filter(r => r.terrain === 'forest').length;
-    if (p.activePower.name === 'Swamp') income += ownedRegions.filter(r => r.terrain === 'swamp').length;
-    if (p.activePower.name === 'Hill') income += ownedRegions.filter(r => r.terrain === 'hill').length;
-    if (p.activePower.name === 'Pillaging') income += state.pillageCount;
-    if (p.activePower.name === 'Fortified') income += ownedRegions.filter(r => r.hasFortress).length;
-  }
+  // Score income
+  scoreIncome(p);
  
-  // Declined regions income
-  if (p.declinedRace) {
-    const declinedOwned = regions.filter(r => p.declinedRegions.includes(r.id) && r.owner === p.id);
-    income += declinedOwned.length;
-  }
- 
-  p.coins += income;
-  addLog(`💰 ${PLAYER_NAMES[p.id]} earns ${income} coins! (Total: ${p.coins})`);
- 
-  // Fortified: place fortress
-  if (p.activePower && p.activePower.name === 'Fortified') {
-    const noFort = ownedRegions.filter(r => !r.hasFortress);
-    if (noFort.length > 0) {
-      const pick = noFort[Math.floor(Math.random() * noFort.length)];
-      pick.hasFortress = true;
-      addLog(`🏰 Fortress placed in region ${pick.id}!`);
-    }
-  }
- 
-  // Next player
-  state.currentPlayer = (state.currentPlayer + 1) % NUM_PLAYERS;
- 
-  // If we've cycled back to player 0, increment turn
-  if (state.currentPlayer === 0) {
-    state.turn++;
-    if (state.turn > MAX_TURNS) {
-      endGame();
-      return;
-    }
-  }
- 
-  // Reset for next player
-  const next = currentPlayer();
-  next.hasDeclinedThisTurn = false;
-  state.conqueredThisTurn = 0;
-  state.pillageCount = 0;
-  state.firstConquests = 0;
-  state.usedFinalDie = false;
-  state.selectedRegion = -1;
- 
-  if (next.activeRace) {
-    // Gather tokens: tokens in hand + 1 from each region (keep 1 on region)
-    let gather = next.activeTokens;
-    getPlayerRegions(next.id).forEach(r => {
-      if (r.tokens > 1) {
-        gather += r.tokens - 1;
-        r.tokens = 1;
-      }
-    });
-    next.activeTokens = gather;
-    state.phase = 'conquer';
-    addLog(`${PLAYER_NAMES[next.id]}'s turn! ${next.activeRace.emoji} ${next.activeRace.name} with ${next.activeTokens} tokens.`);
-  } else {
-    state.phase = 'pick';
-    addLog(`${PLAYER_NAMES[next.id]}'s turn! Pick a race.`);
-  }
- 
-  renderAll();
+  // Advance to next player
+  advanceToNextPlayer();
 }
  
 function endGame() {
@@ -1127,60 +1127,26 @@ function hideModal() {
 //  EVENT BINDINGS
 // ==============================
 btnDecline.addEventListener('click', () => {
-  showModal('💀 Decline Race?', `Put your <b>${currentPlayer().activeRace.emoji} ${currentPlayer().activeRace.name}</b> in decline?<br>You'll need to pick a new race next.`, [
-    { text: 'Yes, Decline', class: 'btn btn-danger', action: () => { hideModal(); declineRace(); endTurn(); } },
-    { text: 'Cancel', class: 'btn btn-info', action: hideModal },
-  ]);
+  const p = currentPlayer();
+  if (!p.activeRace) return;
+  showModal('💀 Decline Race?',
+    `Put your <b>${p.activeRace.emoji} ${p.activeRace.name}</b> in decline?<br><br>` +
+    `Your regions will keep 1 token each as declined territory.<br>` +
+    `This will <b>end your turn</b> — you'll pick a new race next turn.`,
+    [
+      { text: '💀 Yes, Decline', class: 'btn btn-danger', action: () => { hideModal(); declineRace(); } },
+      { text: 'Cancel', class: 'btn btn-info', action: hideModal },
+    ]
+  );
 });
  
 btnEndTurn.addEventListener('click', () => {
-  const p = currentPlayer();
-  if (state.phase === 'redeploy' && p.activeTokens > 0) {
-    // Auto-distribute remaining tokens
-    const owned = getPlayerRegions(p.id);
-    while (p.activeTokens > 0 && owned.length > 0) {
-      owned.forEach(r => { if (p.activeTokens > 0) { r.tokens++; p.activeTokens--; } });
-    }
-    // Abandon empty
-    getPlayerRegions(p.id).forEach(r => {
-      if (r.tokens === 0) r.owner = -1;
-    });
-  }
-  if (state.phase === 'conquer') {
-    // Auto redeploy first
-    startRedeploy();
-    // Auto fill all regions with 1, dump rest on first
-    const owned = getPlayerRegions(p.id);
-    owned.forEach(r => { if (p.activeTokens > 0) { r.tokens = 1; p.activeTokens--; } });
-    while (p.activeTokens > 0 && owned.length > 0) {
-      owned.forEach(r => { if (p.activeTokens > 0) { r.tokens++; p.activeTokens--; } });
-    }
-    getPlayerRegions(p.id).forEach(r => { if (r.tokens === 0) r.owner = -1; });
-    state.phase = 'conquer'; // Reset phase before ending
-  }
   endTurn();
 });
  
 btnRedeploy.addEventListener('click', startRedeploy);
  
 btnLastDie.addEventListener('click', attemptFinalDie);
- 
-// Intercept region clicks during final conquest
-const origRegionClick = onRegionClick;
-function onRegionClick(regId) {
-  if (state.phase === 'final_conquest') {
-    attemptFinalConquest(regId);
-    return;
-  }
-  if (state.phase === 'conquer') {
-    attemptConquest(regId);
-  } else if (state.phase === 'redeploy') {
-    attemptRedeploy(regId);
-  } else {
-    state.selectedRegion = regId;
-    renderAll();
-  }
-}
  
 // ==============================
 //  START
@@ -1203,7 +1169,6 @@ function startGame() {
   renderAll();
 }
  
-// Welcome modal
 document.addEventListener('DOMContentLoaded', () => {
   showModal('⚔️ Welcome to Small Worlds!', `
     <p>A board game of fantasy conquest for 2 players!</p>
@@ -1211,11 +1176,11 @@ document.addEventListener('DOMContentLoaded', () => {
       <li>🎴 <b>Pick a Race+Power combo</b> (top ones cost coins)</li>
       <li>⚔️ <b>Conquer regions</b> by spending tokens</li>
       <li>🔄 <b>Redeploy</b> to rearrange your forces</li>
-      <li>🎲 <b>Final Conquest</b> – roll the dice for one last attack</li>
+      <li>🎲 <b>Final Conquest</b> — roll the dice for one last attack</li>
       <li>💀 <b>Decline</b> your race when it's stretched thin</li>
       <li>💰 <b>Score coins</b> each turn for regions held</li>
     </ul>
-    <p>Most coins after ${MAX_TURNS} turns wins!</p>
+    <p>Most coins after ${MAX_TURNS} turns wins! Each player starts with ${STARTING_COINS} 💰.</p>
   `, [
     { text: '⚔️ Start Game!', class: 'btn btn-success', action: () => { hideModal(); startGame(); } }
   ]);

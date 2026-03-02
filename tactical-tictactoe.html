@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tactical Tic-Tac-Toe</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  h1 {
+    margin-top: 18px;
+    font-size: 2rem;
+    background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 2px;
+  }
+  #ui {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    width: 100%;
+    max-width: 1100px;
+    padding: 10px 10px 20px;
+  }
+  .panel {
+    background: #14142a;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 16px;
+    min-width: 200px;
+    flex: 1;
+  }
+  .panel h2 {
+    font-size: .95rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #2a2a4a;
+    padding-bottom: 6px;
+  }
+  .inv-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: .95rem; }
+  .inv-dot {
+    width: 14px; height: 14px; border-radius: 50%; display: inline-block;
+  }
+  .inv-dot.available { opacity: 1; }
+  .inv-dot.used { opacity: 0.15; }
+  .x-color { background: #ff6b6b; }
+  .o-color { background: #4d96ff; }
+  #status {
+    font-size: 1.15rem;
+    padding: 10px;
+    text-align: center;
+    min-height: 44px;
+    color: #ffd93d;
+    font-weight: 600;
+  }
+  canvas {
+    border-radius: 12px;
+    cursor: pointer;
+    display: block;
+    max-width: 95vw;
+    max-height: 60vh;
+  }
+  .settings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin: 6px 0 4px;
+  }
+  .settings label {
+    font-size: .85rem;
+    color: #aaa;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .settings select, .settings input[type=number] {
+    background: #1e1e3a;
+    color: #e0e0e0;
+    border: 1px solid #3a3a5a;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: .9rem;
+    text-align: center;
+    width: 90px;
+  }
+  .piece-selector {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin: 4px 0;
+  }
+  .piece-btn {
+    width: 48px; height: 48px;
+    border-radius: 10px;
+    border: 2px solid #3a3a5a;
+    background: #1e1e3a;
+    color: #e0e0e0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .piece-btn:hover:not(:disabled) { border-color: #ffd93d; transform: scale(1.08); }
+  .piece-btn.selected { border-color: #ffd93d; background: #2a2a4a; box-shadow: 0 0 10px #ffd93d55; }
+  .piece-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .piece-btn.x-piece { color: #ff6b6b; }
+  .piece-btn.o-piece { color: #4d96ff; }
+  #restartBtn {
+    margin: 8px;
+    padding: 10px 30px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #6bcb77, #4d96ff);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: transform 0.15s;
+  }
+  #restartBtn:hover { transform: scale(1.05); }
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+<h1>⚔️ Tactical Tic-Tac-Toe</h1>
+ 
+<div class="settings" id="settingsBar">
+  <label>Board Size
+    <select id="boardSize">
+      <option value="3">3 × 3</option>
+      <option value="4">4 × 4</option>
+      <option value="5">5 × 5</option>
+    </select>
+  </label>
+  <label>Pieces / Value
+    <input type="number" id="piecesPerValue" min="1" max="9" value="2">
+  </label>
+  <label>Player X
+    <select id="playerXType">
+      <option value="human">Human</option>
+      <option value="cpu">CPU</option>
+    </select>
+  </label>
+  <label>Player O
+    <select id="playerOType">
+      <option value="human">Human</option>
+      <option value="cpu" selected>CPU</option>
+    </select>
+  </label>
+</div>
+ 
+<div id="status">Player X — select a piece, then click the board.</div>
+ 
+<div id="ui">
+  <div class="panel" id="panelX">
+    <h2>Player X</h2>
+    <div id="invX"></div>
+    <div class="piece-selector" id="selectorX"></div>
+  </div>
+  <div class="center-col">
+    <canvas id="glcanvas" width="540" height="540"></canvas>
+  </div>
+  <div class="panel" id="panelO">
+    <h2>Player O</h2>
+    <div id="invO"></div>
+    <div class="piece-selector" id="selectorO"></div>
+  </div>
+</div>
+<button id="restartBtn">🔄 New Game</button>
+ 
+<script>
+// ============== GAME STATE ==============
+let N = 3;
+let PIECES_PER_VALUE = 2;
+let VALUES = [1, 2, 3];
+let board, inventory, currentPlayer, selectedValue, gameOver, winner;
+let playerTypes = { X: 'human', O: 'cpu' };
+let cpuThinking = false;
+let animTime = 0;
+let lastCapture = null;
+let lastCaptureTime = 0;
+ 
+function initGame() {
+  N = parseInt(document.getElementById('boardSize').value);
+  PIECES_PER_VALUE = parseInt(document.getElementById('piecesPerValue').value);
+  playerTypes.X = document.getElementById('playerXType').value;
+  playerTypes.O = document.getElementById('playerOType').value;
+  board = [];
+  for (let r = 0; r < N; r++) {
+    board[r] = [];
+    for (let c = 0; c < N; c++) {
+      board[r][c] = { owner: null, value: 0 };
+    }
+  }
+  inventory = { X: {}, O: {} };
+  VALUES.forEach(v => { inventory.X[v] = PIECES_PER_VALUE; inventory.O[v] = PIECES_PER_VALUE; });
+  currentPlayer = 'X';
+  selectedValue = null;
+  gameOver = false;
+  winner = null;
+  cpuThinking = false;
+  lastCapture = null;
+  resizeCanvas();
+  updateUI();
+  if (playerTypes[currentPlayer] === 'cpu') scheduleCPU();
+}
+ 
+// ============== MOVE LOGIC ==============
+function isValidMove(player, value, r, c) {
+  if (gameOver) return false;
+  if (!inventory[player][value] || inventory[player][value] <= 0) return false;
+  const cell = board[r][c];
+  if (cell.owner === null) return true;
+  if (cell.owner === player) return false;
+  return value > cell.value;
+}
+ 
+function executeMove(player, value, r, c) {
+  const existingCell = board[r][c];
+  const wasCapture = existingCell.owner !== null;
+ 
+  // Return captured piece to its owner's inventory
+  if (wasCapture) {
+    inventory[existingCell.owner][existingCell.value]++;
+    lastCapture = { r, c };
+    lastCaptureTime = performance.now();
+  }
+ 
+  board[r][c] = { owner: player, value: value };
+  inventory[player][value]--;
+ 
+  if (checkWin(player)) {
+    gameOver = true;
+    winner = player;
+  } else if (checkDraw()) {
+    gameOver = true;
+    winner = null;
+  } else {
+    currentPlayer = player === 'X' ? 'O' : 'X';
+  }
+  selectedValue = null;
+  updateUI();
+  if (!gameOver && playerTypes[currentPlayer] === 'cpu') scheduleCPU();
+}
+ 
+function checkWin(player) {
+  const winLen = N >= 5 ? 4 : 3;
+  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if (board[r][c].owner !== player) continue;
+      for (const [dr, dc] of dirs) {
+        let count = 1;
+        for (let k = 1; k < winLen; k++) {
+          const nr = r + dr * k, nc = c + dc * k;
+          if (nr < 0 || nr >= N || nc < 0 || nc >= N) break;
+          if (board[nr][nc].owner === player) count++;
+          else break;
+        }
+        if (count >= winLen) return true;
+      }
+    }
+  }
+  return false;
+}
+ 
+function hasValidMoves(player) {
+  for (const v of VALUES) {
+    if (!inventory[player][v] || inventory[player][v] <= 0) continue;
+    for (let r = 0; r < N; r++)
+      for (let c = 0; c < N; c++)
+        if (isValidMove(player, v, r, c)) return true;
+  }
+  return false;
+}
+ 
+function checkDraw() {
+  return !hasValidMoves('X') && !hasValidMoves('O');
+}
+ 
+// ============== CPU AI ==============
+function scheduleCPU() {
+  cpuThinking = true;
+  updateUI();
+  setTimeout(() => {
+    if (gameOver) { cpuThinking = false; return; }
+    const move = cpuPickMove(currentPlayer);
+    cpuThinking = false;
+    if (move) executeMove(currentPlayer, move.value, move.r, move.c);
+  }, 400);
+}
+ 
+function cpuPickMove(player) {
+  const opponent = player === 'X' ? 'O' : 'X';
+  const winLen = N >= 5 ? 4 : 3;
+  let moves = [];
+  for (const v of VALUES) {
+    if (!inventory[player][v] || inventory[player][v] <= 0) continue;
+    for (let r = 0; r < N; r++)
+      for (let c = 0; c < N; c++)
+        if (isValidMove(player, v, r, c))
+          moves.push({ value: v, r, c });
+  }
+  if (moves.length === 0) return null;
+ 
+  // Helper: temporarily apply a move for simulation, then undo it
+  function simulateMove(p, val, r, c, callback) {
+    const saved = { owner: board[r][c].owner, value: board[r][c].value };
+    const savedInv = inventory[p][val];
+    // If capturing, temporarily return piece to victim's inventory
+    let capturedOwner = null, capturedValue = 0;
+    if (saved.owner !== null && saved.owner !== p) {
+      capturedOwner = saved.owner;
+      capturedValue = saved.value;
+      inventory[capturedOwner][capturedValue]++;
+    }
+    board[r][c] = { owner: p, value: val };
+    inventory[p][val]--;
+ 
+    const result = callback();
+ 
+    // Undo everything
+    board[r][c] = saved;
+    inventory[p][val] = savedInv;
+    if (capturedOwner !== null) {
+      inventory[capturedOwner][capturedValue]--;
+    }
+    return result;
+  }
+ 
+  // 1. Win immediately
+  for (const m of moves) {
+    const wins = simulateMove(player, m.value, m.r, m.c, () => checkWin(player));
+    if (wins) return m;
+  }
+ 
+  // 2. Block opponent win
+  let blockMoves = [];
+  for (const v of VALUES) {
+    if (!inventory[opponent][v] || inventory[opponent][v] <= 0) continue;
+    for (let r = 0; r < N; r++) {
+      for (let c = 0; c < N; c++) {
+        if (isValidMove(opponent, v, r, c)) {
+          const wins = simulateMove(opponent, v, r, c, () => checkWin(opponent));
+          if (wins) {
+            for (const m of moves) {
+              if (m.r === r && m.c === c) blockMoves.push(m);
+            }
+          }
+        }
+      }
+    }
+  }
+  if (blockMoves.length > 0) {
+    blockMoves.sort((a, b) => a.value - b.value);
+    return blockMoves[0];
+  }
+ 
+  // 3. Score remaining moves heuristically
+  function scoreMove(m) {
+    let score = 0;
+    const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+    for (const [dr, dc] of dirs) {
+      let friendly = 0;
+      for (let sign of [-1, 1]) {
+        for (let k = 1; k < winLen; k++) {
+          const nr = m.r + dr * sign * k, nc = m.c + dc * sign * k;
+          if (nr < 0 || nr >= N || nc < 0 || nc >= N) break;
+          if (board[nr][nc].owner === player) friendly++;
+          else break;
+        }
+      }
+      score += friendly * 10;
+    }
+    const center = (N - 1) / 2;
+    score -= (Math.abs(m.r - center) + Math.abs(m.c - center)) * 2;
+    score -= m.value * 3;
+    if (board[m.r][m.c].owner === opponent) score += 5;
+    return score;
+  }
+ 
+  moves.sort((a, b) => scoreMove(b) - scoreMove(a));
+  const topScore = scoreMove(moves[0]);
+  const top = moves.filter(m => scoreMove(m) >= topScore - 3);
+  return top[Math.floor(Math.random() * top.length)];
+}
+ 
+// ============== UI UPDATE ==============
+function updateUI() {
+  const statusEl = document.getElementById('status');
+  if (gameOver) {
+    statusEl.textContent = winner ? `🏆 Player ${winner} wins!` : `🤝 Draw!`;
+    statusEl.style.color = winner === 'X' ? '#ff6b6b' : winner === 'O' ? '#4d96ff' : '#ffd93d';
+  } else if (cpuThinking) {
+    statusEl.textContent = `🤖 Player ${currentPlayer} (CPU) is thinking...`;
+    statusEl.style.color = currentPlayer === 'X' ? '#ff6b6b' : '#4d96ff';
+  } else {
+    const isHuman = playerTypes[currentPlayer] === 'human';
+    statusEl.textContent = isHuman
+      ? `Player ${currentPlayer} — select a piece, then click the board.`
+      : `Player ${currentPlayer} (CPU)`;
+    statusEl.style.color = currentPlayer === 'X' ? '#ff6b6b' : '#4d96ff';
+  }
+ 
+  for (const p of ['X', 'O']) {
+    const invEl = document.getElementById('inv' + p);
+    const selEl = document.getElementById('selector' + p);
+    let invHtml = '';
+    let selHtml = '';
+    const colorClass = p === 'X' ? 'x-color' : 'o-color';
+    const pieceClass = p === 'X' ? 'x-piece' : 'o-piece';
+    VALUES.forEach(v => {
+      const count = inventory[p][v];
+      let dots = '';
+      for (let i = 0; i < PIECES_PER_VALUE; i++) {
+        dots += `<span class="inv-dot ${colorClass} ${i < count ? 'available' : 'used'}"></span>`;
+      }
+      invHtml += `<div class="inv-row"><strong>${p}${subscript(v)}</strong>: ${dots} (${count})</div>`;
+      const isActive = currentPlayer === p && playerTypes[p] === 'human' && !gameOver;
+      const isSelected = currentPlayer === p && selectedValue === v;
+      const disabled = !isActive || count <= 0;
+      selHtml += `<button class="piece-btn ${pieceClass} ${isSelected ? 'selected' : ''}"
+        ${disabled ? 'disabled' : ''}
+        onclick="selectPiece('${p}', ${v})">${p}${subscript(v)}</button>`;
+    });
+    invEl.innerHTML = invHtml;
+    selEl.innerHTML = selHtml;
+  }
+}
+ 
+function subscript(v) {
+  return ['', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'][v] || v;
+}
+ 
+function selectPiece(player, value) {
+  if (player !== currentPlayer || gameOver || cpuThinking) return;
+  if (playerTypes[player] !== 'human') return;
+  selectedValue = (selectedValue === value) ? null : value;
+  updateUI();
+}
+ 
+// ============== CANVAS / WebGL ==============
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl', { antialias: true, alpha: true });
+ 
+const vsSource = `
+  attribute vec2 aPos;
+  uniform vec2 uResolution;
+  void main() {
+    vec2 clip = (aPos / uResolution) * 2.0 - 1.0;
+    clip.y = -clip.y;
+    gl_Position = vec4(clip, 0.0, 1.0);
+  }
+`;
+ 
+const fsSource = `
+  precision mediump float;
+  uniform vec4 uColor;
+  void main() { gl_FragColor = uColor; }
+`;
+ 
+function createShader(gl, type, source) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, source);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+    gl.deleteShader(s);
+    return null;
+  }
+  return s;
+}
+ 
+const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+const program = gl.createProgram();
+gl.attachShader(program, vs);
+gl.attachShader(program, fs);
+gl.linkProgram(program);
+gl.useProgram(program);
+ 
+const aPosLoc = gl.getAttribLocation(program, 'aPos');
+const uResLoc = gl.getUniformLocation(program, 'uResolution');
+const uColorLoc = gl.getUniformLocation(program, 'uColor');
+ 
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.enableVertexAttribArray(aPosLoc);
+gl.vertexAttribPointer(aPosLoc, 2, gl.FLOAT, false, 0, 0);
+ 
+gl.enable(gl.BLEND);
+gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+ 
+function resizeCanvas() {
+  const size = Math.min(540, window.innerWidth * 0.85);
+  canvas.width = size * devicePixelRatio;
+  canvas.height = size * devicePixelRatio;
+  canvas.style.width = size + 'px';
+  canvas.style.height = size + 'px';
+  gl.viewport(0, 0, canvas.width, canvas.height);
+}
+ 
+function setColor(r, g, b, a = 1) {
+  gl.uniform4f(uColorLoc, r, g, b, a);
+}
+ 
+function drawRect(x, y, w, h) {
+  const verts = new Float32Array([x, y, x + w, y, x, y + h, x, y + h, x + w, y, x + w, y + h]);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+ 
+function drawCircleOutline(cx, cy, radius, thickness, segments) {
+  const verts = [];
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    const cos = Math.cos(a), sin = Math.sin(a);
+    verts.push(cx + cos * (radius - thickness / 2), cy + sin * (radius - thickness / 2));
+    verts.push(cx + cos * (radius + thickness / 2), cy + sin * (radius + thickness / 2));
+  }
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, verts.length / 2);
+}
+ 
+function drawCircleFilled(cx, cy, radius, segments) {
+  const verts = [cx, cy];
+  for (let i = 0; i <= segments; i++) {
+    const a = (i / segments) * Math.PI * 2;
+    verts.push(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
+  }
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, verts.length / 2);
+}
+ 
+function drawLine(x1, y1, x2, y2, thickness) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const nx = -dy / len * thickness / 2, ny = dx / len * thickness / 2;
+  const verts = new Float32Array([
+    x1 + nx, y1 + ny, x1 - nx, y1 - ny, x2 + nx, y2 + ny,
+    x2 + nx, y2 + ny, x1 - nx, y1 - ny, x2 - nx, y2 - ny
+  ]);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+ 
+function drawX(cx, cy, size, thickness) {
+  const s = size * 0.38;
+  drawLine(cx - s, cy - s, cx + s, cy + s, thickness);
+  drawLine(cx + s, cy - s, cx - s, cy + s, thickness);
+}
+ 
+function drawO(cx, cy, size, thickness) {
+  drawCircleOutline(cx, cy, size * 0.35, thickness, 48);
+}
+ 
+function drawValueDots(cx, cy, size, value, r, g, b) {
+  const dotR = size * 0.04;
+  const gap = dotR * 3;
+  const startX = cx - (value - 1) * gap / 2;
+  const dotY = cy + size * 0.32;
+  setColor(r, g, b, 0.9);
+  for (let i = 0; i < value; i++) {
+    drawCircleFilled(startX + i * gap, dotY, dotR, 16);
+  }
+}
+ 
+function getCellCoords() {
+  const W = canvas.width, H = canvas.height;
+  const pad = W * 0.06;
+  const cellW = (W - pad * 2) / N;
+  const cellH = (H - pad * 2) / N;
+  return { W, H, pad, cellW, cellH };
+}
+ 
+function render(time) {
+  animTime = time;
+  const { W, H, pad, cellW, cellH } = getCellCoords();
+  gl.uniform2f(uResLoc, W, H);
+  gl.clearColor(0.04, 0.04, 0.1, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+ 
+  setColor(0.1, 0.1, 0.2, 1);
+  drawRect(pad - 4, pad - 4, W - pad * 2 + 8, H - pad * 2 + 8);
+ 
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const x = pad + c * cellW;
+      const y = pad + r * cellH;
+ 
+      const isHover = hoverCell && hoverCell.r === r && hoverCell.c === c;
+      const isCapFlash = lastCapture && lastCapture.r === r && lastCapture.c === c &&
+        (time - lastCaptureTime < 500);
+ 
+      if (isCapFlash) {
+        const flash = Math.sin((time - lastCaptureTime) / 500 * Math.PI) * 0.15;
+        setColor(1, 1, 0.5, flash);
+      } else if (isHover && !gameOver && !cpuThinking && selectedValue !== null) {
+        const canPlace = isValidMove(currentPlayer, selectedValue, r, c);
+        if (canPlace) setColor(0.15, 0.25, 0.15, 1);
+        else setColor(0.25, 0.1, 0.1, 1);
+      } else {
+        setColor(0.08, 0.08, 0.16, 1);
+      }
+      drawRect(x + 2, y + 2, cellW - 4, cellH - 4);
+ 
+      const cell = board[r][c];
+      if (cell.owner) {
+        const cx = x + cellW / 2;
+        const cy = y + cellH / 2 - cellW * 0.04;
+        const pieceSize = Math.min(cellW, cellH);
+        const thickness = pieceSize * 0.07;
+        const intensity = 0.5 + cell.value * 0.17;
+        if (cell.owner === 'X') {
+          setColor(1 * intensity, 0.42 * intensity, 0.42 * intensity, 1);
+          drawX(cx, cy, pieceSize, thickness);
+          drawValueDots(cx, cy, pieceSize, cell.value, 1, 0.42, 0.42);
+        } else {
+          setColor(0.3 * intensity, 0.59 * intensity, 1 * intensity, 1);
+          drawO(cx, cy, pieceSize, thickness);
+          drawValueDots(cx, cy, pieceSize, cell.value, 0.3, 0.59, 1);
+        }
+      }
+    }
+  }
+ 
+  setColor(0.25, 0.25, 0.45, 1);
+  const lineThickness = Math.max(2, W * 0.004);
+  for (let i = 0; i <= N; i++) {
+    drawLine(pad + i * cellW, pad, pad + i * cellW, H - pad, lineThickness);
+    drawLine(pad, pad + i * cellH, W - pad, pad + i * cellH, lineThickness);
+  }
+ 
+  if (gameOver && winner) {
+    const winCells = getWinCells(winner);
+    if (winCells) {
+      const pulse = (Math.sin(time / 200) + 1) / 2 * 0.35 + 0.25;
+      for (const [wr, wc] of winCells) {
+        const x = pad + wc * cellW;
+        const y = pad + wr * cellH;
+        if (winner === 'X') setColor(1, 0.42, 0.42, pulse);
+        else setColor(0.3, 0.59, 1, pulse);
+        drawRect(x + 2, y + 2, cellW - 4, cellH - 4);
+      }
+    }
+  }
+ 
+  requestAnimationFrame(render);
+}
+ 
+function getWinCells(player) {
+  const winLen = N >= 5 ? 4 : 3;
+  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      if (board[r][c].owner !== player) continue;
+      for (const [dr, dc] of dirs) {
+        let cells = [[r, c]];
+        for (let k = 1; k < winLen; k++) {
+          const nr = r + dr * k, nc = c + dc * k;
+          if (nr < 0 || nr >= N || nc < 0 || nc >= N) break;
+          if (board[nr][nc].owner === player) cells.push([nr, nc]);
+          else break;
+        }
+        if (cells.length >= winLen) return cells;
+      }
+    }
+  }
+  return null;
+}
+ 
+// ============== INPUT ==============
+let hoverCell = null;
+ 
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scale = canvas.width / rect.width;
+  const mx = (e.clientX - rect.left) * scale;
+  const my = (e.clientY - rect.top) * scale;
+  const { pad, cellW, cellH } = getCellCoords();
+  const c = Math.floor((mx - pad) / cellW);
+  const r = Math.floor((my - pad) / cellH);
+  if (r >= 0 && r < N && c >= 0 && c < N) hoverCell = { r, c };
+  else hoverCell = null;
+});
+ 
+canvas.addEventListener('mouseleave', () => { hoverCell = null; });
+ 
+canvas.addEventListener('click', (e) => {
+  if (gameOver || cpuThinking) return;
+  if (playerTypes[currentPlayer] !== 'human') return;
+  if (selectedValue === null) return;
+  const rect = canvas.getBoundingClientRect();
+  const scale = canvas.width / rect.width;
+  const mx = (e.clientX - rect.left) * scale;
+  const my = (e.clientY - rect.top) * scale;
+  const { pad, cellW, cellH } = getCellCoords();
+  const c = Math.floor((mx - pad) / cellW);
+  const r = Math.floor((my - pad) / cellH);
+  if (r < 0 || r >= N || c < 0 || c >= N) return;
+  if (isValidMove(currentPlayer, selectedValue, r, c)) {
+    executeMove(currentPlayer, selectedValue, r, c);
+  }
+});
+ 
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  if (gameOver || cpuThinking) return;
+  if (playerTypes[currentPlayer] !== 'human') return;
+  if (selectedValue === null) return;
+  const touch = e.changedTouches[0];
+  const rect = canvas.getBoundingClientRect();
+  const scale = canvas.width / rect.width;
+  const mx = (touch.clientX - rect.left) * scale;
+  const my = (touch.clientY - rect.top) * scale;
+  const { pad, cellW, cellH } = getCellCoords();
+  const c = Math.floor((mx - pad) / cellW);
+  const r = Math.floor((my - pad) / cellH);
+  if (r < 0 || r >= N || c < 0 || c >= N) return;
+  if (isValidMove(currentPlayer, selectedValue, r, c)) {
+    executeMove(currentPlayer, selectedValue, r, c);
+  }
+});
+ 
+document.getElementById('boardSize').addEventListener('change', initGame);
+document.getElementById('piecesPerValue').addEventListener('change', initGame);
+document.getElementById('playerXType').addEventListener('change', initGame);
+document.getElementById('playerOType').addEventListener('change', initGame);
+document.getElementById('restartBtn').addEventListener('click', initGame);
+window.addEventListener('resize', resizeCanvas);
+ 
+// ============== START ==============
+initGame();
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

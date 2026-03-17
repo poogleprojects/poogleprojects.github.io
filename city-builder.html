@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏙️ City Builder</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #0d1b2a; color: #e2e8f0; }
+
+/* Loading */
+#loading-screen {
+  position: fixed; inset: 0; background: #0d1b2a;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 9999; gap: 16px;
+}
+#loading-screen h1 { font-size: 36px; letter-spacing: 2px; }
+#loading-screen p { color: #8899aa; font-size: 14px; }
+#progress-bar-wrap { width: 320px; height: 18px; background: #1e2a38; border-radius: 9px; overflow: hidden; border: 1px solid #2a3a4a; }
+#progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #4caf50, #86efac); border-radius: 9px; transition: width 0.15s; }
+#loading-text { color: #8899aa; font-size: 13px; }
+
+/* Game layout */
+#game { display: none; flex-direction: column; width: 100%; height: 100vh; }
+
+/* HUD */
+#hud {
+  background: #111827; border-bottom: 1px solid #1e3a5a;
+  padding: 0 16px; display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap; min-height: 50px; flex-shrink: 0;
+}
+.hud-sep { width: 1px; height: 24px; background: #2a3a4a; }
+.hud-item { font-size: 13px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.hud-label { color: #8899aa; }
+.hud-value { font-weight: 700; font-size: 15px; min-width: 22px; text-align: right; }
+@keyframes hudPulse { 0%,100% { color: #e2e8f0; } 40% { color: #86efac; } }
+.hud-value.pulse { animation: hudPulse 0.55s ease-in-out; }
+#hud-time { font-size: 13px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+
+/* Canvas area */
+#canvas-wrap { flex: 1; position: relative; overflow: hidden; min-height: 0; }
+#city-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+/* Road controls */
+#road-controls {
+  background: #0d1b2a; padding: 5px 14px;
+  display: flex; align-items: center; gap: 10px;
+  border-top: 1px solid #1e3a5a; border-bottom: 1px solid #1e3a5a;
+  flex-shrink: 0; min-height: 38px;
+}
+.ctrl-btn {
+  padding: 4px 14px; border: 1px solid #2a3a4a; border-radius: 6px;
+  cursor: pointer; font-size: 13px; background: #1e2a38; color: #ccc;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+.ctrl-btn:hover { background: #2a3a4a; color: white; }
+#road-btn.road-active { background: #c4a35a; color: #0d1b2a; border-color: #a48540; font-weight: 700; }
+#cancel-btn { color: #888; }
+#mode-hint { font-size: 12px; color: #8899aa; margin-left: 6px; }
+
+/* Hand */
+#hand-panel {
+  background: #111827; padding: 7px 12px;
+  display: flex; gap: 9px; align-items: flex-start;
+  border-top: 1px solid #1e3a5a; overflow-x: auto;
+  flex-shrink: 0; min-height: 170px;
+}
+#hand-panel::-webkit-scrollbar { height: 5px; }
+#hand-panel::-webkit-scrollbar-track { background: #0d1b2a; }
+#hand-panel::-webkit-scrollbar-thumb { background: #2a3a4a; border-radius: 3px; }
+
+/* Cards */
+.card {
+  flex: 0 0 118px; background: #1e2a38; border-radius: 10px;
+  padding: 7px 6px 6px; cursor: pointer; position: relative;
+  border-top: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-left: 4px solid var(--cc, #666);
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+.card:hover { transform: translateY(-5px); }
+.card.selected {
+  border-top-color: #fff; border-right-color: #fff; border-bottom-color: #fff;
+  box-shadow: 0 0 18px rgba(255,255,255,0.35);
+  transform: translateY(-6px);
+}
+.card.unaffordable { opacity: 0.52; }
+
+.card-badge {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  background: white; color: #0d1b2a; font-size: 9px; font-weight: 800;
+  padding: 2px 7px; border-radius: 8px; white-space: nowrap; letter-spacing: 0.5px;
+}
+.card-img { width: 100%; height: 56px; object-fit: contain; border-radius: 4px; background: #0d1b2a; display: block; margin-bottom: 4px; }
+.card-name { font-size: 11.5px; font-weight: 700; text-align: center; margin-bottom: 2px; line-height: 1.2; }
+.card-cat { font-size: 10px; text-align: center; color: var(--cc, #aaa); margin-bottom: 3px; }
+.card-effect { font-size: 10px; text-align: center; color: #86efac; margin-bottom: 4px; }
+.card-costs { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.cost-chip {
+  font-size: 10px; padding: 1px 5px; border-radius: 4px;
+  background: rgba(0,0,0,0.3); color: #ccc;
+}
+.cost-chip.lacking { color: #ff6666; background: rgba(255,60,60,0.12); }
+
+/* Toast */
+.toast {
+  position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+  background: rgba(10,20,35,0.92); color: white;
+  padding: 11px 26px; border-radius: 10px; font-size: 17px; font-weight: 700;
+  z-index: 5000; border: 1px solid #3a5a7a; pointer-events: none;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  transition: opacity 0.45s; white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <h1>🏙️ City Builder</h1>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <div id="loading-text">Loading tiles… 0 / 36</div>
+  <p>Place buildings, gather resources, grow your city!</p>
+</div>
+
+<!-- Game -->
+<div id="game">
+  <!-- HUD -->
+  <div id="hud">
+    <div class="hud-item">🪵 <span class="hud-label">Wood</span><span class="hud-value" id="hv-wood">5</span></div>
+    <div class="hud-item">🪨 <span class="hud-label">Stone</span><span class="hud-value" id="hv-stone">3</span></div>
+    <div class="hud-item">🌳 <span class="hud-label">Hardwood</span><span class="hud-value" id="hv-hardwood">0</span></div>
+    <div class="hud-item">🔩 <span class="hud-label">Iron</span><span class="hud-value" id="hv-iron">0</span></div>
+    <div class="hud-item">💰 <span class="hud-label">Gold</span><span class="hud-value" id="hv-gold">0</span></div>
+    <div class="hud-sep"></div>
+    <div class="hud-item">👥 <span class="hud-label">Pop</span><span class="hud-value" id="hv-pop">0</span></div>
+    <div class="hud-item">⚔️ <span class="hud-label">Defense</span><span class="hud-value" id="hv-def">0</span></div>
+    <div class="hud-sep"></div>
+    <div class="hud-item" style="margin-left:auto;">⏱️ <span id="hud-time">00:00</span></div>
+  </div>
+
+  <!-- Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="city-canvas"></canvas>
+  </div>
+
+  <!-- Road Controls -->
+  <div id="road-controls">
+    <button class="ctrl-btn" id="road-btn">🛤️ Road Mode</button>
+    <button class="ctrl-btn" id="cancel-btn">✖ Cancel</button>
+    <span style="font-size:11px;color:#555;">│</span>
+    <span style="font-size:12px;color:#8899aa;">Road: 1🪵</span>
+    <span id="mode-hint"></span>
+  </div>
+
+  <!-- Hand -->
+  <div id="hand-panel"></div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+//  BUILDING DATA
+// ═══════════════════════════════════════════════════════════
+const BUILDINGS = [
+  {index:0,  name:'Cottage',        cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:2,stone:0,hardwood:0,iron:0},
+  {index:1,  name:'House',          cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:2,stone:1,hardwood:0,iron:0},
+  {index:2,  name:'Villa',          cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:3,stone:1,hardwood:0,iron:0},
+  {index:3,  name:'Manor',          cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:3,stone:2,hardwood:1,iron:0},
+  {index:4,  name:'Townhouse',      cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:2,stone:2,hardwood:0,iron:0},
+  {index:5,  name:'Apartment',      cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:3,stone:3,hardwood:1,iron:0},
+  {index:6,  name:'Lumber Shack',   cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:1,stone:1,hardwood:0,iron:0},
+  {index:7,  name:'Wood Mill',      cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:1,stone:1,hardwood:0,iron:0},
+  {index:8,  name:'Sawmill',        cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:2,stone:1,hardwood:0,iron:0},
+  {index:9,  name:'Timber Yard',    cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:2,stone:2,hardwood:0,iron:0},
+  {index:10, name:'Logging Camp',   cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:1,stone:2,hardwood:0,iron:0},
+  {index:11, name:'Quarry',         cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:0,hardwood:0,iron:0},
+  {index:12, name:'Stoneworks',     cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:1,hardwood:0,iron:0},
+  {index:13, name:'Mine',           cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:1,hardwood:1,iron:0},
+  {index:14, name:'Gravel Pit',     cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:1,stone:2,hardwood:0,iron:0},
+  {index:15, name:'Rock Hall',      cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:2,hardwood:1,iron:0},
+  {index:16, name:'Hardwood Grove', cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:1,stone:1,hardwood:1,iron:0},
+  {index:17, name:'Ebony Mill',     cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:2,stone:1,hardwood:1,iron:0},
+  {index:18, name:'Oak Workshop',   cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:2,stone:2,hardwood:1,iron:0},
+  {index:19, name:'Ironwood Yard',  cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:2,stone:2,hardwood:2,iron:0},
+  {index:20, name:'Ironworks',      cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:1,stone:2,hardwood:1,iron:0},
+  {index:21, name:'Forge',          cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:2,stone:2,hardwood:1,iron:0},
+  {index:22, name:'Smelter',        cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:2,stone:2,hardwood:2,iron:0},
+  {index:23, name:'Iron Mine',      cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:2,stone:3,hardwood:1,iron:0},
+  {index:24, name:'Market',         cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:2,stone:2,hardwood:0,iron:0},
+  {index:25, name:'Inn',            cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:2,stone:1,hardwood:1,iron:0},
+  {index:26, name:'Town Hall',      cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:3,stone:3,hardwood:1,iron:1},
+  {index:27, name:'Library',        cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:3,stone:2,hardwood:1,iron:0},
+  {index:28, name:'Barracks',       cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:1,stone:1,hardwood:1,iron:1},
+  {index:29, name:'Watchtower',     cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:1,stone:2,hardwood:0,iron:1},
+  {index:30, name:'Armory',         cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:2,stone:2,hardwood:1,iron:2},
+  {index:31, name:'Fort',           cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:3,stone:3,hardwood:2,iron:2},
+  {index:32, name:'Cathedral',      cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:2,stone:3,hardwood:2,iron:1},
+  {index:33, name:'Castle',         cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:3,stone:4,hardwood:2,iron:2},
+  {index:34, name:'Academy',        cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:3,stone:3,hardwood:2,iron:1},
+  {index:35, name:'Wonder',         cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:4,stone:4,hardwood:3,iron:3},
+];
+
+const CAT_COLOR = {
+  Homes:'#ff7043', Wood:'#66bb6a', Stone:'#90a4ae', Hardwood:'#4caf50',
+  Iron:'#78909c', Civic:'#ffa726', Military:'#ef5350', Prestige:'#ab47bc'
+};
+const RES_EMOJI = { wood:'🪵', stone:'🪨', hardwood:'🌳', iron:'🔩', gold:'💰' };
+const GRID = 12;
+const HALF_GRID_CELLS = (GRID * GRID) / 2; // 72 cells = 50% of 144
+const DRIP_SEC = 10; // seconds between resource drips
+const TOWN_CENTER_INDEX = 26; // Town Hall tile used as starting Town Center
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let res = { wood:5, stone:3, hardwood:0, iron:0, gold:0 };
+let pop = 0, def = 0;
+let gameStart = 0, lastDripIdx = 0;
+let grid = [];
+let deck = [], hand = [], discard = [];
+let selCard = -1; // index into hand
+let roadMode = false;
+let hoverCell = null; // {col, row}
+let milestones = { pop20:false, allPrestige:false, halfFill:false };
+
+// ═══════════════════════════════════════════════════════════
+//  WEBGL
+// ═══════════════════════════════════════════════════════════
+let gl, canvas;
+let cProg, tProg;
+let cPosLoc, cColLoc, cProjLoc;
+let tPosLoc, tUVLoc, tProjLoc, tSmpLoc;
+let cBuf, tBuf;
+let proj = new Float32Array(16);
+let textures = new Array(36).fill(null);
+
+const VS_COL = `
+  attribute vec2 a_pos;
+  uniform mat4 u_proj;
+  void main(){ gl_Position = u_proj * vec4(a_pos,0.0,1.0); }
+`;
+const FS_COL = `
+  precision mediump float;
+  uniform vec4 u_col;
+  void main(){ gl_FragColor = u_col; }
+`;
+const VS_TEX = `
+  attribute vec2 a_pos;
+  attribute vec2 a_uv;
+  uniform mat4 u_proj;
+  varying vec2 v_uv;
+  void main(){ gl_Position = u_proj * vec4(a_pos,0.0,1.0); v_uv = a_uv; }
+`;
+const FS_TEX = `
+  precision mediump float;
+  uniform sampler2D u_tex;
+  varying vec2 v_uv;
+  void main(){ gl_FragColor = texture2D(u_tex, v_uv); }
+`;
+
+function mkProg(vs, fs) {
+  const v = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(v, vs); gl.compileShader(v);
+  const f = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(f, fs); gl.compileShader(f);
+  const p = gl.createProgram();
+  gl.attachShader(p, v); gl.attachShader(p, f); gl.linkProgram(p);
+  return p;
+}
+
+function initGL() {
+  canvas = document.getElementById('city-canvas');
+  gl = canvas.getContext('webgl', { alpha:false, antialias:false });
+  if (!gl) { alert('WebGL not supported!'); return false; }
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  cProg = mkProg(VS_COL, FS_COL);
+  cPosLoc = gl.getAttribLocation(cProg, 'a_pos');
+  cColLoc = gl.getUniformLocation(cProg, 'u_col');
+  cProjLoc = gl.getUniformLocation(cProg, 'u_proj');
+
+  tProg = mkProg(VS_TEX, FS_TEX);
+  tPosLoc = gl.getAttribLocation(tProg, 'a_pos');
+  tUVLoc  = gl.getAttribLocation(tProg, 'a_uv');
+  tProjLoc = gl.getUniformLocation(tProg, 'u_proj');
+  tSmpLoc  = gl.getUniformLocation(tProg, 'u_tex');
+
+  cBuf = gl.createBuffer();
+  tBuf = gl.createBuffer();
+  return true;
+}
+
+function uploadTexture(idx, img) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  try {
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  } catch(e) {
+    const d = new Uint8Array([80,100,160,255]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, d);
+  }
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  textures[idx] = t;
+}
+
+function setProj(w, h) {
+  const sx = 2/w, sy = -2/h;
+  proj.set([sx,0,0,0, 0,sy,0,0, 0,0,1,0, -1,1,0,1]);
+}
+
+function resizeCv() {
+  const wrap = document.getElementById('canvas-wrap');
+  const w = Math.max(wrap.clientWidth, 1);
+  const h = Math.max(wrap.clientHeight, 1);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w; canvas.height = h;
+  }
+}
+
+// Draw 2 triangles (quad) with solid color
+const _cv = new Float32Array(12);
+function drawCol(x, y, w, h, r, g, b, a) {
+  _cv[0]=x;   _cv[1]=y;   _cv[2]=x+w; _cv[3]=y;
+  _cv[4]=x;   _cv[5]=y+h; _cv[6]=x+w; _cv[7]=y;
+  _cv[8]=x+w; _cv[9]=y+h; _cv[10]=x;  _cv[11]=y+h;
+  gl.useProgram(cProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, cBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, _cv, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(cPosLoc);
+  gl.vertexAttribPointer(cPosLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.uniformMatrix4fv(cProjLoc, false, proj);
+  gl.uniform4f(cColLoc, r, g, b, a);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+// Draw textured quad; uv y-flipped since we use UNPACK_FLIP_Y
+const _tv = new Float32Array(24);
+function drawTex(x, y, w, h, tex) {
+  if (!tex) return;
+  _tv[0]=x;   _tv[1]=y;   _tv[2]=0; _tv[3]=0;
+  _tv[4]=x+w; _tv[5]=y;   _tv[6]=1; _tv[7]=0;
+  _tv[8]=x;   _tv[9]=y+h; _tv[10]=0; _tv[11]=1;
+  _tv[12]=x+w; _tv[13]=y;  _tv[14]=1; _tv[15]=0;
+  _tv[16]=x+w; _tv[17]=y+h; _tv[18]=1; _tv[19]=1;
+  _tv[20]=x;  _tv[21]=y+h; _tv[22]=0; _tv[23]=1;
+  gl.useProgram(tProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, tBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, _tv, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(tPosLoc);
+  gl.vertexAttribPointer(tPosLoc, 2, gl.FLOAT, false, 16, 0);
+  gl.enableVertexAttribArray(tUVLoc);
+  gl.vertexAttribPointer(tUVLoc, 2, gl.FLOAT, false, 16, 8);
+  gl.uniformMatrix4fv(tProjLoc, false, proj);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(tSmpLoc, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+}
+
+function drawOutline(x, y, w, h, r, g, b, a, thick) {
+  const t = thick || 2;
+  drawCol(x,   y,   w,   t, r,g,b,a);
+  drawCol(x,   y+h-t, w, t, r,g,b,a);
+  drawCol(x,   y, t,   h, r,g,b,a);
+  drawCol(x+w-t, y, t, h, r,g,b,a);
+}
+
+// Bounce scale for newly placed building
+function animScale(placedAt) {
+  const e = performance.now() - placedAt;
+  if (e >= 400 || placedAt === 0) return 1.0;
+  if (e < 200) return (e/200) * 1.2;
+  return 1.2 - ((e-200)/200) * 0.2;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER LOOP
+// ═══════════════════════════════════════════════════════════
+function render(ts) {
+  resizeCv();
+  if (gameStart === 0) { gameStart = ts; lastDripIdx = 0; }
+
+  const elapsed = (ts - gameStart) / 1000;
+  const di = Math.floor(elapsed / DRIP_SEC);
+  if (di > lastDripIdx) { lastDripIdx = di; doDrip(); }
+
+  // Timer
+  const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+  const s = String(Math.floor(elapsed%60)).padStart(2,'0');
+  document.getElementById('hud-time').textContent = m+':'+s;
+
+  const W = canvas.width, H = canvas.height;
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(0.05, 0.1, 0.17, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT);
+  setProj(W, H);
+
+  const cw = W / GRID, ch = H / GRID;
+
+  // 1. Ground layer
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = grid[r][c];
+      const x = c*cw, y = r*ch;
+      if (cell.type === 'road') {
+        drawCol(x, y, cw, ch, 0.769, 0.639, 0.353, 1); // #c4a35a
+      } else {
+        drawCol(x, y, cw, ch, 0.290, 0.486, 0.349, 1); // #4a7c59
+      }
+    }
+  }
+
+  // 2. Grid lines
+  for (let i = 0; i <= GRID; i++) {
+    drawCol(i*cw - 0.5, 0, 1, H, 0,0,0, 0.25);
+    drawCol(0, i*ch - 0.5, W, 1, 0,0,0, 0.25);
+  }
+
+  // 3. Buildings (with bounce)
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = grid[r][c];
+      if (cell.type !== 'building') continue;
+      const sc = animScale(cell.placedAt);
+      const cx = (c+0.5)*cw, cy = (r+0.5)*ch;
+      const hw = cw/2*sc, hh = ch/2*sc;
+      drawTex(cx-hw, cy-hh, hw*2, hh*2, textures[cell.bIdx]);
+    }
+  }
+
+  // 4. Hover highlight
+  if (hoverCell) {
+    const {col, row} = hoverCell;
+    const x = col*cw, y = row*ch;
+    const empty = grid[row][col].type === 'empty';
+    const adj   = isAdj(col, row);
+    const valid = empty && adj;
+
+    if (valid) {
+      if (roadMode) {
+        const canRd = res.wood >= 1;
+        drawCol(x, y, cw, ch, 0.769, 0.639, 0.353, canRd ? 0.55 : 0.25);
+        drawOutline(x, y, cw, ch, canRd ? 0.9 : 0.8, canRd ? 0.8 : 0.2, 0.1, 0.9, 2);
+      } else if (selCard >= 0 && selCard < hand.length) {
+        const bi = hand[selCard];
+        const b  = BUILDINGS[bi];
+        const affordable = canAfford(b);
+        drawCol(x, y, cw, ch, 1,1,1, affordable ? 0.12 : 0.06);
+        if (textures[bi]) drawTex(x, y, cw, ch, textures[bi]);
+        drawOutline(x, y, cw, ch, affordable ? 1 : 0.9, affordable ? 1 : 0.3, affordable ? 1 : 0.3, 0.85, 2);
+      } else {
+        drawCol(x, y, cw, ch, 1,1,1, 0.18);
+        drawOutline(x, y, cw, ch, 1,1,1, 0.7, 2);
+      }
+    } else {
+      drawCol(x, y, cw, ch, 1, 0.15, 0.15, 0.18);
+      drawOutline(x, y, cw, ch, 1, 0.2, 0.2, 0.7, 2);
+    }
+  }
+
+  requestAnimationFrame(render);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GAME LOGIC
+// ═══════════════════════════════════════════════════════════
+function canAfford(b) {
+  return res.wood >= b.wood && res.stone >= b.stone &&
+         res.hardwood >= b.hardwood && res.iron >= b.iron;
+}
+
+function isAdj(col, row) {
+  for (const [dc,dr] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const nc=col+dc, nr=row+dr;
+    if (nc>=0&&nc<GRID&&nr>=0&&nr<GRID && grid[nr][nc].type!=='empty') return true;
+  }
+  return false;
+}
+
+function handleClick(col, row) {
+  if (roadMode) { doRoad(col, row); }
+  else if (selCard >= 0) { doBuild(col, row); }
+  updateModeHint();
+}
+
+function doRoad(col, row) {
+  if (grid[row][col].type !== 'empty') { flashToast('❌ Cell already occupied!'); return; }
+  if (!isAdj(col, row)) { flashToast('❌ Must be adjacent to an existing structure!'); return; }
+  if (res.wood < 1) { flashToast('❌ Need 1 🪵 Wood to place a road!'); return; }
+  res.wood -= 1;
+  grid[row][col] = { type:'road', bIdx:-1, placedAt: performance.now() };
+  updateHUD(); renderHand(); checkMilestones();
+}
+
+function doBuild(col, row) {
+  const bi = hand[selCard];
+  const b  = BUILDINGS[bi];
+  if (grid[row][col].type !== 'empty') { flashToast('❌ Cell already occupied!'); return; }
+  if (!isAdj(col, row)) { flashToast('❌ Must be adjacent to an existing structure!'); return; }
+  if (!canAfford(b)) { flashToast('❌ Cannot afford ' + b.name + '!'); return; }
+
+  res.wood     -= b.wood;
+  res.stone    -= b.stone;
+  res.hardwood -= b.hardwood;
+  res.iron     -= b.iron;
+
+  grid[row][col] = { type:'building', bIdx:bi, placedAt: performance.now() };
+
+  if (b.cat === 'Homes')    pop += 1;
+  else if (b.cat === 'Prestige') pop += 2;
+  else if (b.cat === 'Military') def += 1;
+
+  hand.splice(selCard, 1);
+  discard.push(bi);
+  selCard = -1;
+  dealCard();
+  updateHUD(); renderHand(); checkMilestones();
+}
+
+function dealCard() {
+  if (deck.length === 0) {
+    if (discard.length === 0) return;
+    deck = discard.slice();
+    discard = [];
+    shuffle(deck);
+  }
+  hand.push(deck.pop());
+}
+
+function shuffle(arr) {
+  for (let i=arr.length-1; i>0; i--) {
+    const j = (Math.random()*(i+1))|0;
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+}
+
+function initDeck() {
+  deck = Array.from({length:36},(_,i)=>i).filter(i=>i!==TOWN_CENTER_INDEX);
+  shuffle(deck);
+  hand=[]; discard=[];
+  for (let i=0;i<5;i++) dealCard();
+}
+
+function doDrip() {
+  let changed = false;
+  for (let r=0; r<GRID; r++) {
+    for (let c=0; c<GRID; c++) {
+      const cell = grid[r][c];
+      if (cell.type !== 'building') continue;
+      const b = BUILDINGS[cell.bIdx];
+      let key = null;
+      if (b.cat==='Wood')     key='wood';
+      else if (b.cat==='Stone')    key='stone';
+      else if (b.cat==='Hardwood') key='hardwood';
+      else if (b.cat==='Iron')     key='iron';
+      else if (b.cat==='Civic')    key='gold';
+      if (key) {
+        res[key]++;
+        spawnPopup(c, r, '+1 '+RES_EMOJI[key]);
+        changed = true;
+      }
+    }
+  }
+  if (changed) { updateHUD(); renderHand(); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HUD
+// ═══════════════════════════════════════════════════════════
+const _prevRes = {wood:null,stone:null,hardwood:null,iron:null,gold:null};
+let _prevPop = null, _prevDef = null;
+
+function updateHUD() {
+  for (const k of ['wood','stone','hardwood','iron','gold']) {
+    const el = document.getElementById('hv-'+k);
+    if (el.textContent !== String(res[k])) {
+      el.textContent = res[k];
+      el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+    }
+  }
+  const pe = document.getElementById('hv-pop');
+  if (pe.textContent !== String(pop)) { pe.textContent = pop; pe.classList.remove('pulse'); void pe.offsetWidth; pe.classList.add('pulse'); }
+  const de = document.getElementById('hv-def');
+  if (de.textContent !== String(def)) { de.textContent = def; de.classList.remove('pulse'); void de.offsetWidth; de.classList.add('pulse'); }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HAND / CARDS
+// ═══════════════════════════════════════════════════════════
+function renderHand() {
+  const panel = document.getElementById('hand-panel');
+  panel.innerHTML = '';
+  hand.forEach((bi, i) => {
+    const b = BUILDINGS[bi];
+    const aff = canAfford(b);
+    const sel = (i === selCard);
+    const cc  = CAT_COLOR[b.cat] || '#666';
+    const tileRow = (bi/6)|0, tileCol = bi%6;
+
+    const card = document.createElement('div');
+    card.className = 'card' + (sel?' selected':'') + (aff?'':' unaffordable');
+    card.style.setProperty('--cc', cc);
+
+    if (sel) {
+      const badge = document.createElement('div');
+      badge.className = 'card-badge';
+      badge.textContent = '▼ SELECTED';
+      card.appendChild(badge);
+    }
+
+    const img = document.createElement('img');
+    img.className = 'card-img';
+    img.src = `tiles/tile_${tileRow}x${tileCol}_${bi}.png`;
+    img.alt = b.name;
+    img.draggable = false;
+    card.appendChild(img);
+
+    const name = document.createElement('div');
+    name.className = 'card-name';
+    name.textContent = b.name;
+    card.appendChild(name);
+
+    const cat = document.createElement('div');
+    cat.className = 'card-cat';
+    cat.textContent = b.emoji+' '+b.cat;
+    card.appendChild(cat);
+
+    const eff = document.createElement('div');
+    eff.className = 'card-effect';
+    eff.textContent = b.effect;
+    card.appendChild(eff);
+
+    const costs = document.createElement('div');
+    costs.className = 'card-costs';
+    const costDefs = [
+      {k:'wood', e:'🪵', v:b.wood, col:'#a06030'},
+      {k:'stone', e:'🪨', v:b.stone, col:'#9096a0'},
+      {k:'hardwood', e:'🌳', v:b.hardwood, col:'#3a7030'},
+      {k:'iron', e:'🔩', v:b.iron, col:'#5a7888'},
+    ];
+    let anyCost = false;
+    for (const {k, e, v, col: color} of costDefs) {
+      if (v <= 0) continue;
+      anyCost = true;
+      const chip = document.createElement('span');
+      const lacking = res[k] < v;
+      chip.className = 'cost-chip' + (lacking?' lacking':'');
+      chip.style.color = lacking ? '#ff6666' : color;
+      chip.textContent = e+v;
+      costs.appendChild(chip);
+    }
+    if (!anyCost) {
+      const chip = document.createElement('span');
+      chip.className = 'cost-chip';
+      chip.style.color = '#86efac';
+      chip.textContent = 'Free';
+      costs.appendChild(chip);
+    }
+    card.appendChild(costs);
+
+    card.addEventListener('click', () => {
+      selCard = (selCard === i) ? -1 : i;
+      if (selCard >= 0) roadMode = false, setRoadBtn();
+      renderHand();
+      updateModeHint();
+    });
+
+    panel.appendChild(card);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MILESTONES / TOASTS
+// ═══════════════════════════════════════════════════════════
+function checkMilestones() {
+  if (!milestones.pop20 && pop >= 20) {
+    milestones.pop20 = true;
+    flashToast('🏆 Growing City! Population reached 20!');
+  }
+  if (!milestones.allPrestige) {
+    const ps = new Set();
+    for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++) {
+      const cell = grid[r][c];
+      if (cell.type==='building' && BUILDINGS[cell.bIdx].cat==='Prestige') ps.add(cell.bIdx);
+    }
+    if (ps.size >= 4) {
+      milestones.allPrestige = true;
+      flashToast('💎 Legendary City! All Prestige buildings constructed!');
+    }
+  }
+  if (!milestones.halfFill) {
+    let filled = 0;
+    for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++) if (grid[r][c].type!=='empty') filled++;
+    if (filled >= HALF_GRID_CELLS) {
+      milestones.halfFill = true;
+      flashToast('🗺️ Bustling Metropolis! 50% of the city is built!');
+    }
+  }
+}
+
+let _toastTimer = null;
+function flashToast(msg) {
+  let existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  if (_toastTimer) clearTimeout(_toastTimer);
+
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+
+  _toastTimer = setTimeout(() => {
+    t.style.opacity = '0';
+    setTimeout(() => { if (t.parentNode) t.remove(); }, 480);
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FLOATING POPUP
+// ═══════════════════════════════════════════════════════════
+function spawnPopup(col, row, text) {
+  const wrap = document.getElementById('canvas-wrap');
+  const cr = canvas.getBoundingClientRect();
+  const wr = wrap.getBoundingClientRect();
+  const cw = cr.width / GRID, ch = cr.height / GRID;
+  const x = (cr.left - wr.left) + (col + 0.5) * cw;
+  const y = (cr.top  - wr.top)  + row * ch + ch * 0.2;
+
+  const d = document.createElement('div');
+  d.textContent = text;
+  d.style.cssText = [
+    'position:absolute',
+    `left:${x}px`,
+    `top:${y}px`,
+    'transform:translateX(-50%)',
+    'color:#ffe580',
+    'font-size:13px',
+    'font-weight:700',
+    'text-shadow:0 1px 4px rgba(0,0,0,0.9)',
+    'pointer-events:none',
+    'z-index:200',
+    'white-space:nowrap',
+    'opacity:1',
+    'transition:top 1.4s ease-out, opacity 1.4s ease-in',
+  ].join(';');
+  wrap.appendChild(d);
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    d.style.top = (y - 55) + 'px';
+    d.style.opacity = '0';
+  }));
+  setTimeout(() => { if (d.parentNode) d.remove(); }, 1500);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ROAD BTN UI
+// ═══════════════════════════════════════════════════════════
+function setRoadBtn() {
+  document.getElementById('road-btn').classList.toggle('road-active', roadMode);
+}
+function updateModeHint() {
+  const h = document.getElementById('mode-hint');
+  if (roadMode) {
+    h.textContent = '🛤️ Click a cell to place road';
+    h.style.color = '#c4a35a';
+  } else if (selCard >= 0 && selCard < hand.length) {
+    const b = BUILDINGS[hand[selCard]];
+    h.textContent = '🏗️ Click a cell to place ' + b.name;
+    h.style.color = '#86efac';
+  } else {
+    h.textContent = 'Select a card or use Road Mode';
+    h.style.color = '#8899aa';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EVENTS
+// ═══════════════════════════════════════════════════════════
+function cellFromEvent(e) {
+  const r = canvas.getBoundingClientRect();
+  const sx = canvas.width / r.width;
+  const sy = canvas.height / r.height;
+  const x = (e.clientX - r.left) * sx;
+  const y = (e.clientY - r.top)  * sy;
+  const col = (x / (canvas.width  / GRID)) | 0;
+  const row = (y / (canvas.height / GRID)) | 0;
+  if (col<0||col>=GRID||row<0||row>=GRID) return null;
+  return {col, row};
+}
+
+function bindEvents() {
+  canvas.addEventListener('click', e => {
+    const c = cellFromEvent(e);
+    if (c) handleClick(c.col, c.row);
+  });
+  canvas.addEventListener('mousemove', e => {
+    hoverCell = cellFromEvent(e);
+  });
+  canvas.addEventListener('mouseleave', () => { hoverCell = null; });
+
+  document.getElementById('road-btn').addEventListener('click', () => {
+    roadMode = !roadMode;
+    if (roadMode) { selCard = -1; renderHand(); }
+    setRoadBtn(); updateModeHint();
+  });
+  document.getElementById('cancel-btn').addEventListener('click', () => {
+    roadMode = false; selCard = -1;
+    setRoadBtn(); renderHand(); updateModeHint();
+  });
+  window.addEventListener('resize', resizeCv);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOADING
+// ═══════════════════════════════════════════════════════════
+function loadImages() {
+  return new Promise(resolve => {
+    let done = 0;
+    const imgs = new Array(36);
+    for (let i=0; i<36; i++) {
+      const r=(i/6)|0, c=i%6;
+      const img = new Image();
+      imgs[i] = img;
+      img.onload = img.onerror = () => {
+        done++;
+        const pct = (done/36)*100;
+        document.getElementById('progress-bar').style.width = pct+'%';
+        document.getElementById('loading-text').textContent = `Loading tiles… ${done} / 36`;
+        if (done===36) resolve(imgs);
+      };
+      img.src = `tiles/tile_${r}x${c}_${i}.png`;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  // Load tile images
+  const imgs = await loadImages();
+
+  // Show game, hide loader
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+
+  // WebGL setup
+  if (!initGL()) return;
+  for (let i=0; i<36; i++) uploadTexture(i, imgs[i]);
+
+  // Grid init
+  for (let r=0; r<GRID; r++) {
+    grid[r] = [];
+    for (let c=0; c<GRID; c++) grid[r][c] = {type:'empty', bIdx:-1, placedAt:0};
+  }
+  // Town Center at (5,5) — index 26, permanent, no animation
+  grid[5][5] = {type:'building', bIdx:TOWN_CENTER_INDEX, placedAt:0};
+
+  // Deck + hand
+  initDeck();
+
+  // Events
+  bindEvents();
+
+  // Initial UI
+  updateHUD(); renderHand(); updateModeHint();
+
+  // Start loop
+  requestAnimationFrame(render);
+}
+
+init();
+</script>
+</body>
+</html>

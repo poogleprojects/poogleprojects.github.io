@@ -3,755 +3,1107 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tactical Tic-Tac-Toe</title>
+<title>🏙️ City Builder</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #0a0a1a;
-    color: #e0e0e0;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-  h1 {
-    margin-top: 18px;
-    font-size: 2rem;
-    background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: 2px;
-  }
-  #ui {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 20px;
-    width: 100%;
-    max-width: 1100px;
-    padding: 10px 10px 20px;
-  }
-  .panel {
-    background: #14142a;
-    border: 1px solid #2a2a4a;
-    border-radius: 12px;
-    padding: 16px;
-    min-width: 200px;
-    flex: 1;
-  }
-  .panel h2 {
-    font-size: .95rem;
-    color: #888;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid #2a2a4a;
-    padding-bottom: 6px;
-  }
-  .inv-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: .95rem; }
-  .inv-dot {
-    width: 14px; height: 14px; border-radius: 50%; display: inline-block;
-  }
-  .inv-dot.available { opacity: 1; }
-  .inv-dot.used { opacity: 0.15; }
-  .x-color { background: #ff6b6b; }
-  .o-color { background: #4d96ff; }
-  #status {
-    font-size: 1.15rem;
-    padding: 10px;
-    text-align: center;
-    min-height: 44px;
-    color: #ffd93d;
-    font-weight: 600;
-  }
-  canvas {
-    border-radius: 12px;
-    cursor: pointer;
-    display: block;
-    max-width: 95vw;
-    max-height: 60vh;
-  }
-  .settings {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    margin: 6px 0 4px;
-  }
-  .settings label {
-    font-size: .85rem;
-    color: #aaa;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-  }
-  .settings select, .settings input[type=number] {
-    background: #1e1e3a;
-    color: #e0e0e0;
-    border: 1px solid #3a3a5a;
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: .9rem;
-    text-align: center;
-    width: 90px;
-  }
-  .piece-selector {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-    margin: 4px 0;
-  }
-  .piece-btn {
-    width: 48px; height: 48px;
-    border-radius: 10px;
-    border: 2px solid #3a3a5a;
-    background: #1e1e3a;
-    color: #e0e0e0;
-    font-size: 1.1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .piece-btn:hover:not(:disabled) { border-color: #ffd93d; transform: scale(1.08); }
-  .piece-btn.selected { border-color: #ffd93d; background: #2a2a4a; box-shadow: 0 0 10px #ffd93d55; }
-  .piece-btn:disabled { opacity: 0.25; cursor: not-allowed; }
-  .piece-btn.x-piece { color: #ff6b6b; }
-  .piece-btn.o-piece { color: #4d96ff; }
-  #restartBtn {
-    margin: 8px;
-    padding: 10px 30px;
-    border-radius: 10px;
-    border: none;
-    background: linear-gradient(135deg, #6bcb77, #4d96ff);
-    color: #fff;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    letter-spacing: 1px;
-    transition: transform 0.15s;
-  }
-  #restartBtn:hover { transform: scale(1.05); }
-  .center-col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #0d1b2a; color: #e2e8f0; }
+
+/* Loading */
+#loading-screen {
+  position: fixed; inset: 0; background: #0d1b2a;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 9999; gap: 16px;
+}
+#loading-screen h1 { font-size: 36px; letter-spacing: 2px; }
+#loading-screen p { color: #8899aa; font-size: 14px; }
+#progress-bar-wrap { width: 320px; height: 18px; background: #1e2a38; border-radius: 9px; overflow: hidden; border: 1px solid #2a3a4a; }
+#progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #4caf50, #86efac); border-radius: 9px; transition: width 0.15s; }
+#loading-text { color: #8899aa; font-size: 13px; }
+
+/* Game layout */
+#game { display: none; flex-direction: column; width: 100%; height: 100vh; }
+
+/* HUD - top bar: Population, Defense, Timer only */
+#hud {
+  background: #111827; border-bottom: 1px solid #1e3a5a;
+  padding: 0 16px; display: flex; align-items: center; gap: 14px;
+  min-height: 40px; flex-shrink: 0;
+}
+.hud-sep { width: 1px; height: 20px; background: #2a3a4a; }
+.hud-item { font-size: 13px; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.hud-label { color: #8899aa; }
+.hud-value { font-weight: 700; font-size: 14px; min-width: 22px; text-align: right; }
+@keyframes hudPulse { 0%,100% { color: #e2e8f0; } 40% { color: #86efac; } }
+.hud-value.pulse { animation: hudPulse 0.55s ease-in-out; }
+#hud-time { font-size: 13px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+
+/* Canvas area */
+#canvas-wrap { flex: 1; position: relative; overflow: hidden; min-height: 0; }
+#city-canvas { width: 100%; height: 100%; display: block; cursor: crosshair; }
+
+/* Bottom bar: resource bar + gold shop */
+#bottom-bar {
+  background: #0d1b2a; border-top: 1px solid #1e3a5a; border-bottom: 1px solid #1e3a5a;
+  display: flex; align-items: stretch; flex-shrink: 0; min-height: 46px;
+}
+
+/* Resource bar */
+#resource-bar {
+  display: flex; align-items: center; gap: 8px; padding: 4px 12px;
+  flex-wrap: wrap; flex: 1; position: relative; overflow: visible;
+}
+.res-item {
+  display: flex; flex-direction: column; align-items: center; position: relative;
+}
+.res-row { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.res-value { font-weight: 700; font-size: 15px; min-width: 22px; text-align: right; }
+.res-value.pulse { animation: hudPulse 0.55s ease-in-out; }
+.prod-label {
+  position: absolute; top: -4px; left: 50%; transform: translateX(-50%) translateY(-100%);
+  color: #ffe580; font-size: 11px; font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.9); pointer-events: none;
+  white-space: nowrap; opacity: 0; z-index: 100;
+  transition: opacity 0.3s ease-in;
+}
+.prod-label.show { opacity: 1; }
+.res-sep { width: 1px; height: 28px; background: #2a3a4a; flex-shrink: 0; }
+#mode-hint-bar {
+  font-size: 11px; color: #8899aa; display: flex; align-items: center;
+  padding: 0 6px; white-space: nowrap; margin-left: auto;
+}
+
+/* Gold shop */
+#gold-shop {
+  display: flex; align-items: center; gap: 5px; padding: 4px 10px;
+  border-left: 1px solid #1e3a5a; background: #111827; flex-shrink: 0;
+}
+.shop-label { font-size: 11px; color: #ffa726; font-weight: 700; white-space: nowrap; margin-right: 2px; }
+.shop-btn {
+  padding: 3px 7px; border: 1px solid #2a3a4a; border-radius: 6px;
+  cursor: pointer; font-size: 11px; background: #1e2a38; color: #ccc;
+  transition: background 0.15s, opacity 0.15s; white-space: nowrap;
+}
+.shop-btn:hover:not(:disabled) { background: #2a3a4a; color: white; }
+.shop-btn:disabled { opacity: 0.38; cursor: not-allowed; }
+
+/* Hand */
+#hand-panel {
+  background: #111827; padding: 7px 12px;
+  display: flex; gap: 9px; align-items: flex-start;
+  border-top: 1px solid #1e3a5a; overflow-x: auto;
+  flex-shrink: 0; min-height: 170px;
+}
+#hand-panel::-webkit-scrollbar { height: 5px; }
+#hand-panel::-webkit-scrollbar-track { background: #0d1b2a; }
+#hand-panel::-webkit-scrollbar-thumb { background: #2a3a4a; border-radius: 3px; }
+
+/* Cards */
+.card {
+  flex: 0 0 118px; background: #1e2a38; border-radius: 10px;
+  padding: 7px 6px 6px; cursor: pointer; position: relative;
+  border-top: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  border-left: 4px solid var(--cc, #666);
+  transition: transform 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+.card:hover { transform: translateY(-5px); }
+.card.selected {
+  border-top-color: #fff; border-right-color: #fff; border-bottom-color: #fff;
+  box-shadow: 0 0 18px rgba(255,255,255,0.35);
+  transform: translateY(-6px);
+}
+.card.unaffordable { opacity: 0.52; }
+.card.road-card { background: #2a1f0d; }
+.card.road-card.selected {
+  border-top-color: #c4a35a; border-right-color: #c4a35a; border-bottom-color: #c4a35a;
+  box-shadow: 0 0 18px rgba(196,163,90,0.5);
+}
+.card-badge {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
+  background: white; color: #0d1b2a; font-size: 9px; font-weight: 800;
+  padding: 2px 7px; border-radius: 8px; white-space: nowrap; letter-spacing: 0.5px;
+}
+.card-img { width: 100%; height: 56px; object-fit: contain; border-radius: 4px; background: #0d1b2a; display: block; margin-bottom: 4px; }
+.card-road-icon { width: 100%; height: 56px; display: flex; align-items: center; justify-content: center; font-size: 28px; background: #3a2a10; border-radius: 4px; margin-bottom: 4px; }
+.card-name { font-size: 11.5px; font-weight: 700; text-align: center; margin-bottom: 2px; line-height: 1.2; }
+.card-cat { font-size: 10px; text-align: center; color: var(--cc, #aaa); margin-bottom: 3px; }
+.card-effect { font-size: 10px; text-align: center; color: #86efac; margin-bottom: 4px; }
+.card-costs { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.cost-chip {
+  font-size: 10px; padding: 1px 5px; border-radius: 4px;
+  background: rgba(0,0,0,0.3); color: #ccc;
+}
+.cost-chip.lacking { color: #ff6666; background: rgba(255,60,60,0.12); }
+
+/* Discard button on each building card */
+.discard-btn {
+  position: absolute; top: 4px; right: 4px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: rgba(255,60,60,0.15); border: 1px solid rgba(255,80,80,0.35);
+  color: #ff9999; font-size: 10px; line-height: 18px; text-align: center;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s; z-index: 10;
+}
+.discard-btn:hover { background: rgba(255,60,60,0.55); color: #fff; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 52px; left: 50%; transform: translateX(-50%);
+  background: rgba(10,20,35,0.92); color: white;
+  padding: 11px 26px; border-radius: 10px; font-size: 17px; font-weight: 700;
+  z-index: 5000; border: 1px solid #3a5a7a; pointer-events: none;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+  transition: opacity 0.45s; white-space: nowrap;
+}
+
+/* Milestone log – persistent top-right panel */
+#milestone-log {
+  position: fixed; top: 48px; right: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  z-index: 4000; pointer-events: none; max-width: 280px;
+}
+.ms-entry {
+  background: rgba(10,20,35,0.88); color: #e2e8f0;
+  border: 1px solid #2a5a3a; border-radius: 8px;
+  padding: 7px 12px; font-size: 13px; font-weight: 600;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.55);
+  display: flex; flex-direction: column; gap: 2px;
+  animation: msSlideIn 0.35s ease-out;
+}
+@keyframes msSlideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.ms-label { color: #ffd700; }
+.ms-time  { color: #94a3b8; font-size: 11px; font-weight: 400; }
+
+/* Tile overlay */
+#tile-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tile-cell {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tile-cell img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+.tile-cat-icon {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  user-select: none;
+}
+@keyframes tileBounce {
+  0%   { transform: scale(0); }
+  60%  { transform: scale(1.15); }
+  80%  { transform: scale(0.95); }
+  100% { transform: scale(1.0); }
+}
+.tile-cell.bounce {
+  animation: tileBounce 0.4s ease-out forwards;
+}
 </style>
 </head>
 <body>
-<h1>⚔️ Tactical Tic-Tac-Toe</h1>
- 
-<div class="settings" id="settingsBar">
-  <label>Board Size
-    <select id="boardSize">
-      <option value="3">3 × 3</option>
-      <option value="4">4 × 4</option>
-      <option value="5">5 × 5</option>
-    </select>
-  </label>
-  <label>Pieces / Value
-    <input type="number" id="piecesPerValue" min="1" max="9" value="2">
-  </label>
-  <label>Player X
-    <select id="playerXType">
-      <option value="human">Human</option>
-      <option value="cpu">CPU</option>
-    </select>
-  </label>
-  <label>Player O
-    <select id="playerOType">
-      <option value="human">Human</option>
-      <option value="cpu" selected>CPU</option>
-    </select>
-  </label>
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <h1>🏙️ City Builder</h1>
+  <div id="progress-bar-wrap"><div id="progress-bar"></div></div>
+  <div id="loading-text">Loading tiles… 0 / 36</div>
+  <p>Place buildings, gather resources, grow your city!</p>
 </div>
- 
-<div id="status">Player X — select a piece, then click the board.</div>
- 
-<div id="ui">
-  <div class="panel" id="panelX">
-    <h2>Player X</h2>
-    <div id="invX"></div>
-    <div class="piece-selector" id="selectorX"></div>
+
+<!-- Game -->
+<div id="game">
+  <!-- HUD: Population, Defense, Timer only -->
+  <div id="hud">
+    <div class="hud-item">👥 <span class="hud-label">Pop</span><span class="hud-value" id="hv-pop">0</span></div>
+    <div class="hud-item">⚔️ <span class="hud-label">Defense</span><span class="hud-value" id="hv-def">0</span></div>
+    <div class="hud-sep"></div>
+    <div class="hud-item" style="margin-left:auto;">⏱️ <span id="hud-time">00:00</span></div>
   </div>
-  <div class="center-col">
-    <canvas id="glcanvas" width="540" height="540"></canvas>
+
+  <!-- Persistent milestone log (top-right) -->
+  <div id="milestone-log"></div>
+
+  <!-- Canvas -->
+  <div id="canvas-wrap">
+    <canvas id="city-canvas"></canvas>
+    <div id="tile-overlay"></div>
   </div>
-  <div class="panel" id="panelO">
-    <h2>Player O</h2>
-    <div id="invO"></div>
-    <div class="piece-selector" id="selectorO"></div>
+
+  <!-- Bottom bar: Resource bar + Gold shop -->
+  <div id="bottom-bar">
+    <div id="resource-bar">
+      <div class="res-item">
+        <div class="prod-label" id="prod-wood"></div>
+        <div class="res-row">🌲 <span class="hud-label">Wood</span><span class="res-value" id="hv-wood">5</span></div>
+      </div>
+      <div class="res-sep"></div>
+      <div class="res-item">
+        <div class="prod-label" id="prod-stone"></div>
+        <div class="res-row">🗿 <span class="hud-label">Stone</span><span class="res-value" id="hv-stone">3</span></div>
+      </div>
+      <div class="res-sep"></div>
+      <div class="res-item">
+        <div class="prod-label" id="prod-hardwood"></div>
+        <div class="res-row">🌳 <span class="hud-label">Hardwood</span><span class="res-value" id="hv-hardwood">0</span></div>
+      </div>
+      <div class="res-sep"></div>
+      <div class="res-item">
+        <div class="prod-label" id="prod-iron"></div>
+        <div class="res-row">🔩 <span class="hud-label">Iron</span><span class="res-value" id="hv-iron">0</span></div>
+      </div>
+      <div class="res-sep"></div>
+      <div class="res-item">
+        <div class="prod-label" id="prod-gold"></div>
+        <div class="res-row">💰 <span class="hud-label">Gold</span><span class="res-value" id="hv-gold">0</span></div>
+      </div>
+      <div class="res-sep"></div>
+      <div id="mode-hint-bar"></div>
+    </div>
+    <div id="gold-shop">
+      <span class="shop-label">💰 Shop</span>
+      <button class="shop-btn" id="buy-wood"     title="Spend 1 Gold for 3 Wood">💰1→🌲+3</button>
+      <button class="shop-btn" id="buy-stone"    title="Spend 1 Gold for 3 Stone">💰1→🗿+3</button>
+      <button class="shop-btn" id="buy-hardwood" title="Spend 1 Gold for 2 Hardwood">💰1→🌳+2</button>
+      <button class="shop-btn" id="buy-iron"     title="Spend 1 Gold for 2 Iron">💰1→🔩+2</button>
+    </div>
   </div>
+
+  <!-- Hand: 5 building cards + 1 permanent road card -->
+  <div id="hand-panel"></div>
 </div>
-<button id="restartBtn">🔄 New Game</button>
- 
+
 <script>
-// ============== GAME STATE ==============
-let N = 3;
-let PIECES_PER_VALUE = 2;
-let VALUES = [1, 2, 3];
-let board, inventory, currentPlayer, selectedValue, gameOver, winner;
-let playerTypes = { X: 'human', O: 'cpu' };
-let cpuThinking = false;
-let animTime = 0;
-let lastCapture = null;
-let lastCaptureTime = 0;
- 
-function initGame() {
-  N = parseInt(document.getElementById('boardSize').value);
-  PIECES_PER_VALUE = parseInt(document.getElementById('piecesPerValue').value);
-  playerTypes.X = document.getElementById('playerXType').value;
-  playerTypes.O = document.getElementById('playerOType').value;
-  board = [];
-  for (let r = 0; r < N; r++) {
-    board[r] = [];
-    for (let c = 0; c < N; c++) {
-      board[r][c] = { owner: null, value: 0 };
-    }
-  }
-  inventory = { X: {}, O: {} };
-  VALUES.forEach(v => { inventory.X[v] = PIECES_PER_VALUE; inventory.O[v] = PIECES_PER_VALUE; });
-  currentPlayer = 'X';
-  selectedValue = null;
-  gameOver = false;
-  winner = null;
-  cpuThinking = false;
-  lastCapture = null;
-  resizeCanvas();
-  updateUI();
-  if (playerTypes[currentPlayer] === 'cpu') scheduleCPU();
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+//  BUILDING DATA
+// ═══════════════════════════════════════════════════════════
+const BUILDINGS = [
+  {index:0,  name:'Cottage',        cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:2,stone:0,hardwood:0,iron:0},
+  {index:1,  name:'House',          cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:2,stone:1,hardwood:0,iron:0},
+  {index:2,  name:'Villa',          cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:3,stone:1,hardwood:0,iron:0},
+  {index:3,  name:'Manor',          cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:3,stone:2,hardwood:1,iron:0},
+  {index:4,  name:'Townhouse',      cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:2,stone:2,hardwood:0,iron:0},
+  {index:5,  name:'Apartment',      cat:'Homes',    emoji:'🏠', effect:'+1 Population',    wood:3,stone:3,hardwood:1,iron:0},
+  {index:6,  name:'Lumber Shack',   cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:1,stone:1,hardwood:0,iron:0},
+  {index:7,  name:'Wood Mill',      cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:1,stone:1,hardwood:0,iron:0},
+  {index:8,  name:'Sawmill',        cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:2,stone:1,hardwood:0,iron:0},
+  {index:9,  name:'Timber Yard',    cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:2,stone:2,hardwood:0,iron:0},
+  {index:10, name:'Logging Camp',   cat:'Wood',     emoji:'🌲', effect:'+1 Wood/turn',     wood:1,stone:2,hardwood:0,iron:0},
+  {index:11, name:'Quarry',         cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:0,hardwood:0,iron:0},
+  {index:12, name:'Stoneworks',     cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:1,hardwood:0,iron:0},
+  {index:13, name:'Mine',           cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:1,hardwood:1,iron:0},
+  {index:14, name:'Gravel Pit',     cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:1,stone:2,hardwood:0,iron:0},
+  {index:15, name:'Rock Hall',      cat:'Stone',    emoji:'⛏️', effect:'+1 Stone/turn',    wood:2,stone:2,hardwood:1,iron:0},
+  {index:16, name:'Hardwood Grove', cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:1,stone:1,hardwood:1,iron:0},
+  {index:17, name:'Ebony Mill',     cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:2,stone:1,hardwood:1,iron:0},
+  {index:18, name:'Oak Workshop',   cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:2,stone:2,hardwood:1,iron:0},
+  {index:19, name:'Ironwood Yard',  cat:'Hardwood', emoji:'🌳', effect:'+1 Hardwood/turn', wood:2,stone:2,hardwood:2,iron:0},
+  {index:20, name:'Ironworks',      cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:1,stone:2,hardwood:1,iron:0},
+  {index:21, name:'Forge',          cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:2,stone:2,hardwood:1,iron:0},
+  {index:22, name:'Smelter',        cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:2,stone:2,hardwood:2,iron:0},
+  {index:23, name:'Iron Mine',      cat:'Iron',     emoji:'🔩', effect:'+1 Iron/turn',     wood:2,stone:3,hardwood:1,iron:0},
+  {index:24, name:'Market',         cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:2,stone:2,hardwood:0,iron:0},
+  {index:25, name:'Inn',            cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:2,stone:1,hardwood:1,iron:0},
+  {index:26, name:'Town Hall',      cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:3,stone:3,hardwood:1,iron:1},
+  {index:27, name:'Library',        cat:'Civic',    emoji:'🏪', effect:'+1 Gold/turn',     wood:3,stone:2,hardwood:1,iron:0},
+  {index:28, name:'Barracks',       cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:1,stone:1,hardwood:1,iron:1},
+  {index:29, name:'Watchtower',     cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:1,stone:2,hardwood:0,iron:1},
+  {index:30, name:'Armory',         cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:2,stone:2,hardwood:1,iron:2},
+  {index:31, name:'Fort',           cat:'Military', emoji:'⚔️', effect:'+1 Defense',       wood:3,stone:3,hardwood:2,iron:2},
+  {index:32, name:'Cathedral',      cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:2,stone:3,hardwood:2,iron:1},
+  {index:33, name:'Castle',         cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:3,stone:4,hardwood:2,iron:2},
+  {index:34, name:'Academy',        cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:3,stone:3,hardwood:2,iron:1},
+  {index:35, name:'Wonder',         cat:'Prestige', emoji:'🛕', effect:'+2 Population',    wood:4,stone:4,hardwood:3,iron:3},
+];
+
+const CAT_COLOR = {
+  Homes:'#ff7043', Wood:'#66bb6a', Stone:'#90a4ae', Hardwood:'#4caf50',
+  Iron:'#78909c', Civic:'#ffa726', Military:'#ef5350', Prestige:'#ab47bc'
+};
+
+// Pre-compute RGB [0..1] floats for WebGL from category colors
+const CAT_COLOR_RGB = {};
+for (const [k, hex] of Object.entries(CAT_COLOR)) {
+  CAT_COLOR_RGB[k] = [
+    parseInt(hex.slice(1,3),16)/255,
+    parseInt(hex.slice(3,5),16)/255,
+    parseInt(hex.slice(5,7),16)/255
+  ];
 }
- 
-// ============== MOVE LOGIC ==============
-function isValidMove(player, value, r, c) {
-  if (gameOver) return false;
-  if (!inventory[player][value] || inventory[player][value] <= 0) return false;
-  const cell = board[r][c];
-  if (cell.owner === null) return true;
-  if (cell.owner === player) return false;
-  return value > cell.value;
-}
- 
-function executeMove(player, value, r, c) {
-  const existingCell = board[r][c];
-  const wasCapture = existingCell.owner !== null;
- 
-  // Return captured piece to its owner's inventory
-  if (wasCapture) {
-    inventory[existingCell.owner][existingCell.value]++;
-    lastCapture = { r, c };
-    lastCaptureTime = performance.now();
-  }
- 
-  board[r][c] = { owner: player, value: value };
-  inventory[player][value]--;
- 
-  if (checkWin(player)) {
-    gameOver = true;
-    winner = player;
-  } else if (checkDraw()) {
-    gameOver = true;
-    winner = null;
-  } else {
-    currentPlayer = player === 'X' ? 'O' : 'X';
-  }
-  selectedValue = null;
-  updateUI();
-  if (!gameOver && playerTypes[currentPlayer] === 'cpu') scheduleCPU();
-}
- 
-function checkWin(player) {
-  const winLen = N >= 5 ? 4 : 3;
-  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      if (board[r][c].owner !== player) continue;
-      for (const [dr, dc] of dirs) {
-        let count = 1;
-        for (let k = 1; k < winLen; k++) {
-          const nr = r + dr * k, nc = c + dc * k;
-          if (nr < 0 || nr >= N || nc < 0 || nc >= N) break;
-          if (board[nr][nc].owner === player) count++;
-          else break;
-        }
-        if (count >= winLen) return true;
-      }
-    }
-  }
-  return false;
-}
- 
-function hasValidMoves(player) {
-  for (const v of VALUES) {
-    if (!inventory[player][v] || inventory[player][v] <= 0) continue;
-    for (let r = 0; r < N; r++)
-      for (let c = 0; c < N; c++)
-        if (isValidMove(player, v, r, c)) return true;
-  }
-  return false;
-}
- 
-function checkDraw() {
-  return !hasValidMoves('X') && !hasValidMoves('O');
-}
- 
-// ============== CPU AI ==============
-function scheduleCPU() {
-  cpuThinking = true;
-  updateUI();
-  setTimeout(() => {
-    if (gameOver) { cpuThinking = false; return; }
-    const move = cpuPickMove(currentPlayer);
-    cpuThinking = false;
-    if (move) executeMove(currentPlayer, move.value, move.r, move.c);
-  }, 400);
-}
- 
-function cpuPickMove(player) {
-  const opponent = player === 'X' ? 'O' : 'X';
-  const winLen = N >= 5 ? 4 : 3;
-  let moves = [];
-  for (const v of VALUES) {
-    if (!inventory[player][v] || inventory[player][v] <= 0) continue;
-    for (let r = 0; r < N; r++)
-      for (let c = 0; c < N; c++)
-        if (isValidMove(player, v, r, c))
-          moves.push({ value: v, r, c });
-  }
-  if (moves.length === 0) return null;
- 
-  // Helper: temporarily apply a move for simulation, then undo it
-  function simulateMove(p, val, r, c, callback) {
-    const saved = { owner: board[r][c].owner, value: board[r][c].value };
-    const savedInv = inventory[p][val];
-    // If capturing, temporarily return piece to victim's inventory
-    let capturedOwner = null, capturedValue = 0;
-    if (saved.owner !== null && saved.owner !== p) {
-      capturedOwner = saved.owner;
-      capturedValue = saved.value;
-      inventory[capturedOwner][capturedValue]++;
-    }
-    board[r][c] = { owner: p, value: val };
-    inventory[p][val]--;
- 
-    const result = callback();
- 
-    // Undo everything
-    board[r][c] = saved;
-    inventory[p][val] = savedInv;
-    if (capturedOwner !== null) {
-      inventory[capturedOwner][capturedValue]--;
-    }
-    return result;
-  }
- 
-  // 1. Win immediately
-  for (const m of moves) {
-    const wins = simulateMove(player, m.value, m.r, m.c, () => checkWin(player));
-    if (wins) return m;
-  }
- 
-  // 2. Block opponent win
-  let blockMoves = [];
-  for (const v of VALUES) {
-    if (!inventory[opponent][v] || inventory[opponent][v] <= 0) continue;
-    for (let r = 0; r < N; r++) {
-      for (let c = 0; c < N; c++) {
-        if (isValidMove(opponent, v, r, c)) {
-          const wins = simulateMove(opponent, v, r, c, () => checkWin(opponent));
-          if (wins) {
-            for (const m of moves) {
-              if (m.r === r && m.c === c) blockMoves.push(m);
-            }
-          }
-        }
-      }
-    }
-  }
-  if (blockMoves.length > 0) {
-    blockMoves.sort((a, b) => a.value - b.value);
-    return blockMoves[0];
-  }
- 
-  // 3. Score remaining moves heuristically
-  function scoreMove(m) {
-    let score = 0;
-    const dirs = [[0,1],[1,0],[1,1],[1,-1]];
-    for (const [dr, dc] of dirs) {
-      let friendly = 0;
-      for (let sign of [-1, 1]) {
-        for (let k = 1; k < winLen; k++) {
-          const nr = m.r + dr * sign * k, nc = m.c + dc * sign * k;
-          if (nr < 0 || nr >= N || nc < 0 || nc >= N) break;
-          if (board[nr][nc].owner === player) friendly++;
-          else break;
-        }
-      }
-      score += friendly * 10;
-    }
-    const center = (N - 1) / 2;
-    score -= (Math.abs(m.r - center) + Math.abs(m.c - center)) * 2;
-    score -= m.value * 3;
-    if (board[m.r][m.c].owner === opponent) score += 5;
-    return score;
-  }
- 
-  moves.sort((a, b) => scoreMove(b) - scoreMove(a));
-  const topScore = scoreMove(moves[0]);
-  const top = moves.filter(m => scoreMove(m) >= topScore - 3);
-  return top[Math.floor(Math.random() * top.length)];
-}
- 
-// ============== UI UPDATE ==============
-function updateUI() {
-  const statusEl = document.getElementById('status');
-  if (gameOver) {
-    statusEl.textContent = winner ? `🏆 Player ${winner} wins!` : `🤝 Draw!`;
-    statusEl.style.color = winner === 'X' ? '#ff6b6b' : winner === 'O' ? '#4d96ff' : '#ffd93d';
-  } else if (cpuThinking) {
-    statusEl.textContent = `🤖 Player ${currentPlayer} (CPU) is thinking...`;
-    statusEl.style.color = currentPlayer === 'X' ? '#ff6b6b' : '#4d96ff';
-  } else {
-    const isHuman = playerTypes[currentPlayer] === 'human';
-    statusEl.textContent = isHuman
-      ? `Player ${currentPlayer} — select a piece, then click the board.`
-      : `Player ${currentPlayer} (CPU)`;
-    statusEl.style.color = currentPlayer === 'X' ? '#ff6b6b' : '#4d96ff';
-  }
- 
-  for (const p of ['X', 'O']) {
-    const invEl = document.getElementById('inv' + p);
-    const selEl = document.getElementById('selector' + p);
-    let invHtml = '';
-    let selHtml = '';
-    const colorClass = p === 'X' ? 'x-color' : 'o-color';
-    const pieceClass = p === 'X' ? 'x-piece' : 'o-piece';
-    VALUES.forEach(v => {
-      const count = inventory[p][v];
-      let dots = '';
-      for (let i = 0; i < PIECES_PER_VALUE; i++) {
-        dots += `<span class="inv-dot ${colorClass} ${i < count ? 'available' : 'used'}"></span>`;
-      }
-      invHtml += `<div class="inv-row"><strong>${p}${subscript(v)}</strong>: ${dots} (${count})</div>`;
-      const isActive = currentPlayer === p && playerTypes[p] === 'human' && !gameOver;
-      const isSelected = currentPlayer === p && selectedValue === v;
-      const disabled = !isActive || count <= 0;
-      selHtml += `<button class="piece-btn ${pieceClass} ${isSelected ? 'selected' : ''}"
-        ${disabled ? 'disabled' : ''}
-        onclick="selectPiece('${p}', ${v})">${p}${subscript(v)}</button>`;
-    });
-    invEl.innerHTML = invHtml;
-    selEl.innerHTML = selHtml;
-  }
-}
- 
-function subscript(v) {
-  return ['', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉'][v] || v;
-}
- 
-function selectPiece(player, value) {
-  if (player !== currentPlayer || gameOver || cpuThinking) return;
-  if (playerTypes[player] !== 'human') return;
-  selectedValue = (selectedValue === value) ? null : value;
-  updateUI();
-}
- 
-// ============== CANVAS / WebGL ==============
-const canvas = document.getElementById('glcanvas');
-const gl = canvas.getContext('webgl', { antialias: true, alpha: true });
- 
-const vsSource = `
-  attribute vec2 aPos;
-  uniform vec2 uResolution;
-  void main() {
-    vec2 clip = (aPos / uResolution) * 2.0 - 1.0;
-    clip.y = -clip.y;
-    gl_Position = vec4(clip, 0.0, 1.0);
-  }
+
+const RES_EMOJI  = { wood:'🌲', stone:'🗿', hardwood:'🌳', iron:'🔩', gold:'💰' };
+const GRID       = 12;
+const HALF_GRID_CELLS = (GRID * GRID) / 2; // 72 cells = 50%
+const DRIP_SEC   = 10;
+const TOWN_CENTER_INDEX = 26;
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let res = { wood:5, stone:3, hardwood:0, iron:0, gold:0 };
+let pop = 0, def = 0;
+let gameStart = 0, lastDripIdx = 0;
+let _gameStartPerf = 0;
+let grid = [];
+let deck = [], hand = [], discard = [];
+let selCard = -1; // index into hand (-1 = none)
+let roadMode = false;
+let hoverCell = null;
+let milestones = { pop20:false, allPrestige:false, halfFill:false };
+
+// ═══════════════════════════════════════════════════════════
+//  WEBGL
+// ═══════════════════════════════════════════════════════════
+let gl, canvas;
+let cProg;
+let cPosLoc, cColLoc, cProjLoc;
+let cBuf;
+let proj = new Float32Array(16);
+
+const VS_COL = `
+  attribute vec2 a_pos;
+  uniform mat4 u_proj;
+  void main(){ gl_Position = u_proj * vec4(a_pos,0.0,1.0); }
 `;
- 
-const fsSource = `
+const FS_COL = `
   precision mediump float;
-  uniform vec4 uColor;
-  void main() { gl_FragColor = uColor; }
+  uniform vec4 u_col;
+  void main(){ gl_FragColor = u_col; }
 `;
- 
-function createShader(gl, type, source) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, source);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    console.error(gl.getShaderInfoLog(s));
-    gl.deleteShader(s);
-    return null;
+
+function mkProg(vs, fs) {
+  const v = gl.createShader(gl.VERTEX_SHADER);
+  gl.shaderSource(v, vs); gl.compileShader(v);
+  const f = gl.createShader(gl.FRAGMENT_SHADER);
+  gl.shaderSource(f, fs); gl.compileShader(f);
+  const p = gl.createProgram();
+  gl.attachShader(p, v); gl.attachShader(p, f); gl.linkProgram(p);
+  return p;
+}
+
+function initGL() {
+  canvas = document.getElementById('city-canvas');
+  gl = canvas.getContext('webgl', { alpha:false, antialias:false });
+  if (!gl) { alert('WebGL not supported!'); return false; }
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+  cProg = mkProg(VS_COL, FS_COL);
+  cPosLoc = gl.getAttribLocation(cProg, 'a_pos');
+  cColLoc = gl.getUniformLocation(cProg, 'u_col');
+  cProjLoc = gl.getUniformLocation(cProg, 'u_proj');
+
+  cBuf = gl.createBuffer();
+  return true;
+}
+
+function setProj(w, h) {
+  const sx = 2/w, sy = -2/h;
+  proj.set([sx,0,0,0, 0,sy,0,0, 0,0,1,0, -1,1,0,1]);
+}
+
+function resizeCv() {
+  const wrap = document.getElementById('canvas-wrap');
+  const w = Math.max(wrap.clientWidth, 1);
+  const h = Math.max(wrap.clientHeight, 1);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w; canvas.height = h;
+    renderTileOverlay();
   }
-  return s;
 }
- 
-const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
-const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
-const program = gl.createProgram();
-gl.attachShader(program, vs);
-gl.attachShader(program, fs);
-gl.linkProgram(program);
-gl.useProgram(program);
- 
-const aPosLoc = gl.getAttribLocation(program, 'aPos');
-const uResLoc = gl.getUniformLocation(program, 'uResolution');
-const uColorLoc = gl.getUniformLocation(program, 'uColor');
- 
-const buf = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-gl.enableVertexAttribArray(aPosLoc);
-gl.vertexAttribPointer(aPosLoc, 2, gl.FLOAT, false, 0, 0);
- 
-gl.enable(gl.BLEND);
-gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
- 
-function resizeCanvas() {
-  const size = Math.min(540, window.innerWidth * 0.85);
-  canvas.width = size * devicePixelRatio;
-  canvas.height = size * devicePixelRatio;
-  canvas.style.width = size + 'px';
-  canvas.style.height = size + 'px';
-  gl.viewport(0, 0, canvas.width, canvas.height);
+
+// ═══════════════════════════════════════════════════════════
+//  TILE OVERLAY (HTML img layer over the WebGL canvas)
+// ═══════════════════════════════════════════════════════════
+function renderTileOverlay() {
+  const overlay = document.getElementById('tile-overlay');
+  if (!overlay) return;
+  overlay.innerHTML = '';
+
+  const W = canvas.clientWidth || canvas.width;
+  const H = canvas.clientHeight || canvas.height;
+  const cw = W / GRID;
+  const ch = H / GRID;
+  const now = performance.now();
+
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = grid[r][c];
+      if (cell.type !== 'building') continue;
+      const b = BUILDINGS[cell.bIdx];
+      const tileRow = (cell.bIdx / 6) | 0;
+      const tileCol = cell.bIdx % 6;
+
+      const div = document.createElement('div');
+      div.className = 'tile-cell' + (cell.placedAt > 0 && (now - cell.placedAt) < 500 ? ' bounce' : '');
+      div.style.left   = (c * cw) + 'px';
+      div.style.top    = (r * ch) + 'px';
+      div.style.width  = cw + 'px';
+      div.style.height = ch + 'px';
+
+      const img = document.createElement('img');
+      img.src = `tiles/tile_${tileRow}x${tileCol}_${cell.bIdx}.png`;
+      img.alt = b.name;
+      img.draggable = false;
+      div.appendChild(img);
+
+      const icon = document.createElement('span');
+      icon.className = 'tile-cat-icon';
+      icon.textContent = b.emoji;
+      div.appendChild(icon);
+
+      overlay.appendChild(div);
+    }
+  }
 }
- 
-function setColor(r, g, b, a = 1) {
-  gl.uniform4f(uColorLoc, r, g, b, a);
-}
- 
-function drawRect(x, y, w, h) {
-  const verts = new Float32Array([x, y, x + w, y, x, y + h, x, y + h, x + w, y, x + w, y + h]);
-  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+
+// Draw 2 triangles (quad) with solid color
+const _cv = new Float32Array(12);
+function drawCol(x, y, w, h, r, g, b, a) {
+  _cv[0]=x;   _cv[1]=y;   _cv[2]=x+w; _cv[3]=y;
+  _cv[4]=x;   _cv[5]=y+h; _cv[6]=x+w; _cv[7]=y;
+  _cv[8]=x+w; _cv[9]=y+h; _cv[10]=x;  _cv[11]=y+h;
+  gl.useProgram(cProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, cBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, _cv, gl.DYNAMIC_DRAW);
+  gl.enableVertexAttribArray(cPosLoc);
+  gl.vertexAttribPointer(cPosLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.uniformMatrix4fv(cProjLoc, false, proj);
+  gl.uniform4f(cColLoc, r, g, b, a);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
- 
-function drawCircleOutline(cx, cy, radius, thickness, segments) {
-  const verts = [];
-  for (let i = 0; i <= segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    const cos = Math.cos(a), sin = Math.sin(a);
-    verts.push(cx + cos * (radius - thickness / 2), cy + sin * (radius - thickness / 2));
-    verts.push(cx + cos * (radius + thickness / 2), cy + sin * (radius + thickness / 2));
-  }
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.DYNAMIC_DRAW);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, verts.length / 2);
+
+function drawOutline(x, y, w, h, r, g, b, a, thick) {
+  const t = thick || 2;
+  drawCol(x,     y,     w,   t, r,g,b,a);
+  drawCol(x,     y+h-t, w,   t, r,g,b,a);
+  drawCol(x,     y,     t,   h, r,g,b,a);
+  drawCol(x+w-t, y,     t,   h, r,g,b,a);
 }
- 
-function drawCircleFilled(cx, cy, radius, segments) {
-  const verts = [cx, cy];
-  for (let i = 0; i <= segments; i++) {
-    const a = (i / segments) * Math.PI * 2;
-    verts.push(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
-  }
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(verts), gl.DYNAMIC_DRAW);
-  gl.drawArrays(gl.TRIANGLE_FAN, 0, verts.length / 2);
-}
- 
-function drawLine(x1, y1, x2, y2, thickness) {
-  const dx = x2 - x1, dy = y2 - y1;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  const nx = -dy / len * thickness / 2, ny = dx / len * thickness / 2;
-  const verts = new Float32Array([
-    x1 + nx, y1 + ny, x1 - nx, y1 - ny, x2 + nx, y2 + ny,
-    x2 + nx, y2 + ny, x1 - nx, y1 - ny, x2 - nx, y2 - ny
-  ]);
-  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-}
- 
-function drawX(cx, cy, size, thickness) {
-  const s = size * 0.38;
-  drawLine(cx - s, cy - s, cx + s, cy + s, thickness);
-  drawLine(cx + s, cy - s, cx - s, cy + s, thickness);
-}
- 
-function drawO(cx, cy, size, thickness) {
-  drawCircleOutline(cx, cy, size * 0.35, thickness, 48);
-}
- 
-function drawValueDots(cx, cy, size, value, r, g, b) {
-  const dotR = size * 0.04;
-  const gap = dotR * 3;
-  const startX = cx - (value - 1) * gap / 2;
-  const dotY = cy + size * 0.32;
-  setColor(r, g, b, 0.9);
-  for (let i = 0; i < value; i++) {
-    drawCircleFilled(startX + i * gap, dotY, dotR, 16);
-  }
-}
- 
-function getCellCoords() {
+
+// ═══════════════════════════════════════════════════════════
+//  RENDER LOOP
+// ═══════════════════════════════════════════════════════════
+function render(ts) {
+  resizeCv();
+  if (gameStart === 0) { gameStart = ts; lastDripIdx = 0; _gameStartPerf = performance.now(); }
+
+  const elapsed = (ts - gameStart) / 1000;
+  const di = Math.floor(elapsed / DRIP_SEC);
+  if (di > lastDripIdx) { lastDripIdx = di; doDrip(); }
+
+  // Timer
+  const m = String(Math.floor(elapsed/60)).padStart(2,'0');
+  const s = String(Math.floor(elapsed%60)).padStart(2,'0');
+  document.getElementById('hud-time').textContent = m+':'+s;
+
   const W = canvas.width, H = canvas.height;
-  const pad = W * 0.06;
-  const cellW = (W - pad * 2) / N;
-  const cellH = (H - pad * 2) / N;
-  return { W, H, pad, cellW, cellH };
-}
- 
-function render(time) {
-  animTime = time;
-  const { W, H, pad, cellW, cellH } = getCellCoords();
-  gl.uniform2f(uResLoc, W, H);
-  gl.clearColor(0.04, 0.04, 0.1, 1);
+  gl.viewport(0, 0, W, H);
+  gl.clearColor(0.05, 0.1, 0.17, 1);
   gl.clear(gl.COLOR_BUFFER_BIT);
- 
-  setColor(0.1, 0.1, 0.2, 1);
-  drawRect(pad - 4, pad - 4, W - pad * 2 + 8, H - pad * 2 + 8);
- 
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      const x = pad + c * cellW;
-      const y = pad + r * cellH;
- 
-      const isHover = hoverCell && hoverCell.r === r && hoverCell.c === c;
-      const isCapFlash = lastCapture && lastCapture.r === r && lastCapture.c === c &&
-        (time - lastCaptureTime < 500);
- 
-      if (isCapFlash) {
-        const flash = Math.sin((time - lastCaptureTime) / 500 * Math.PI) * 0.15;
-        setColor(1, 1, 0.5, flash);
-      } else if (isHover && !gameOver && !cpuThinking && selectedValue !== null) {
-        const canPlace = isValidMove(currentPlayer, selectedValue, r, c);
-        if (canPlace) setColor(0.15, 0.25, 0.15, 1);
-        else setColor(0.25, 0.1, 0.1, 1);
+  setProj(W, H);
+
+  const cw = W / GRID, ch = H / GRID;
+
+  // 1. Ground layer
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = grid[r][c];
+      const x = c*cw, y = r*ch;
+      if (cell.type === 'road') {
+        drawCol(x, y, cw, ch, 0.769, 0.639, 0.353, 1); // #c4a35a
       } else {
-        setColor(0.08, 0.08, 0.16, 1);
-      }
-      drawRect(x + 2, y + 2, cellW - 4, cellH - 4);
- 
-      const cell = board[r][c];
-      if (cell.owner) {
-        const cx = x + cellW / 2;
-        const cy = y + cellH / 2 - cellW * 0.04;
-        const pieceSize = Math.min(cellW, cellH);
-        const thickness = pieceSize * 0.07;
-        const intensity = 0.5 + cell.value * 0.17;
-        if (cell.owner === 'X') {
-          setColor(1 * intensity, 0.42 * intensity, 0.42 * intensity, 1);
-          drawX(cx, cy, pieceSize, thickness);
-          drawValueDots(cx, cy, pieceSize, cell.value, 1, 0.42, 0.42);
-        } else {
-          setColor(0.3 * intensity, 0.59 * intensity, 1 * intensity, 1);
-          drawO(cx, cy, pieceSize, thickness);
-          drawValueDots(cx, cy, pieceSize, cell.value, 0.3, 0.59, 1);
-        }
+        drawCol(x, y, cw, ch, 0.290, 0.486, 0.349, 1); // #4a7c59
       }
     }
   }
- 
-  setColor(0.25, 0.25, 0.45, 1);
-  const lineThickness = Math.max(2, W * 0.004);
-  for (let i = 0; i <= N; i++) {
-    drawLine(pad + i * cellW, pad, pad + i * cellW, H - pad, lineThickness);
-    drawLine(pad, pad + i * cellH, W - pad, pad + i * cellH, lineThickness);
+
+  // 2. Grid lines
+  for (let i = 0; i <= GRID; i++) {
+    drawCol(i*cw - 0.5, 0, 1, H, 0,0,0, 0.25);
+    drawCol(0, i*ch - 0.5, W, 1, 0,0,0, 0.25);
   }
- 
-  if (gameOver && winner) {
-    const winCells = getWinCells(winner);
-    if (winCells) {
-      const pulse = (Math.sin(time / 200) + 1) / 2 * 0.35 + 0.25;
-      for (const [wr, wc] of winCells) {
-        const x = pad + wc * cellW;
-        const y = pad + wr * cellH;
-        if (winner === 'X') setColor(1, 0.42, 0.42, pulse);
-        else setColor(0.3, 0.59, 1, pulse);
-        drawRect(x + 2, y + 2, cellW - 4, cellH - 4);
+
+  // 3. Hover highlight
+  if (hoverCell) {
+    const {col, row} = hoverCell;
+    const x = col*cw, y = row*ch;
+    const empty = grid[row][col].type === 'empty';
+    const adj   = isAdj(col, row);
+    const valid = empty && adj;
+
+    if (valid) {
+      if (roadMode) {
+        const canRd = res.wood >= 1;
+        drawCol(x, y, cw, ch, 0.769, 0.639, 0.353, canRd ? 0.55 : 0.25);
+        drawOutline(x, y, cw, ch, canRd ? 0.9 : 0.8, canRd ? 0.8 : 0.2, 0.1, 0.9, 2);
+      } else if (selCard >= 0 && selCard < hand.length) {
+        const bi = hand[selCard];
+        const b  = BUILDINGS[bi];
+        const affordable = canAfford(b);
+        drawCol(x, y, cw, ch, 1,1,1, affordable ? 0.12 : 0.06);
+        drawOutline(x, y, cw, ch, affordable ? 1 : 0.9, affordable ? 1 : 0.3, affordable ? 1 : 0.3, 0.85, 2);
+      } else {
+        drawCol(x, y, cw, ch, 1,1,1, 0.18);
+        drawOutline(x, y, cw, ch, 1,1,1, 0.7, 2);
       }
+    } else {
+      drawCol(x, y, cw, ch, 1, 0.15, 0.15, 0.18);
+      drawOutline(x, y, cw, ch, 1, 0.2, 0.2, 0.7, 2);
     }
   }
- 
+
   requestAnimationFrame(render);
 }
- 
-function getWinCells(player) {
-  const winLen = N >= 5 ? 4 : 3;
-  const dirs = [[0,1],[1,0],[1,1],[1,-1]];
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      if (board[r][c].owner !== player) continue;
-      for (const [dr, dc] of dirs) {
-        let cells = [[r, c]];
-        for (let k = 1; k < winLen; k++) {
-          const nr = r + dr * k, nc = c + dc * k;
-          if (nr < 0 || nr >= N || nc < 0 || nc >= N) break;
-          if (board[nr][nc].owner === player) cells.push([nr, nc]);
-          else break;
-        }
-        if (cells.length >= winLen) return cells;
+
+// ═══════════════════════════════════════════════════════════
+//  GAME LOGIC
+// ═══════════════════════════════════════════════════════════
+function canAfford(b) {
+  return res.wood >= b.wood && res.stone >= b.stone &&
+         res.hardwood >= b.hardwood && res.iron >= b.iron;
+}
+
+function isAdj(col, row) {
+  for (const [dc,dr] of [[-1,0],[1,0],[0,-1],[0,1]]) {
+    const nc=col+dc, nr=row+dr;
+    if (nc>=0&&nc<GRID&&nr>=0&&nr<GRID && grid[nr][nc].type!=='empty') return true;
+  }
+  return false;
+}
+
+function handleClick(col, row) {
+  if (roadMode) { doRoad(col, row); }
+  else if (selCard >= 0) { doBuild(col, row); }
+  updateModeHint();
+}
+
+function doRoad(col, row) {
+  if (grid[row][col].type !== 'empty') { flashToast('❌ Cell already occupied!'); return; }
+  if (!isAdj(col, row)) { flashToast('❌ Must be adjacent to an existing structure!'); return; }
+  if (res.wood < 1) { flashToast('❌ Need 1 🌲 Wood to place a road!'); return; }
+  res.wood -= 1;
+  grid[row][col] = { type:'road', bIdx:-1, placedAt: performance.now() };
+  updateHUD(); renderHand(); checkMilestones();
+}
+
+function doBuild(col, row) {
+  const bi = hand[selCard];
+  const b  = BUILDINGS[bi];
+  if (grid[row][col].type !== 'empty') { flashToast('❌ Cell already occupied!'); return; }
+  if (!isAdj(col, row)) { flashToast('❌ Must be adjacent to an existing structure!'); return; }
+  if (!canAfford(b)) { flashToast('❌ Cannot afford ' + b.name + '!'); return; }
+
+  res.wood     -= b.wood;
+  res.stone    -= b.stone;
+  res.hardwood -= b.hardwood;
+  res.iron     -= b.iron;
+
+  grid[row][col] = { type:'building', bIdx:bi, placedAt: performance.now() };
+
+  if (b.cat === 'Homes')    pop += 1;
+  else if (b.cat === 'Prestige') pop += 2;
+  else if (b.cat === 'Military') def += 1;
+
+  discard.push(bi);
+  hand.splice(selCard, 1);
+  selCard = -1;
+  dealCard();
+  updateHUD(); renderHand(); renderTileOverlay(); checkMilestones();
+}
+
+function discardCard(i) {
+  if (i < 0 || i >= hand.length) return;
+  discard.push(hand[i]);
+  hand.splice(i, 1);
+  if (selCard === i) selCard = -1;
+  else if (selCard > i) selCard--;
+  dealCard();
+  renderHand(); updateModeHint();
+}
+
+function dealCard() {
+  if (deck.length === 0) {
+    if (discard.length === 0) return;
+    deck = discard.slice();
+    discard = [];
+    shuffle(deck);
+  }
+  hand.push(deck.pop());
+}
+
+function shuffle(arr) {
+  for (let i=arr.length-1; i>0; i--) {
+    const j = (Math.random()*(i+1))|0;
+    [arr[i],arr[j]] = [arr[j],arr[i]];
+  }
+}
+
+function initDeck() {
+  deck = Array.from({length:36},(_,i)=>i).filter(i=>i!==TOWN_CENTER_INDEX);
+  shuffle(deck);
+  hand=[]; discard=[];
+  for (let i=0;i<5;i++) dealCard();
+}
+
+function doDrip() {
+  const totals = { wood:0, stone:0, hardwood:0, iron:0, gold:0 };
+  let changed = false;
+  for (let r=0; r<GRID; r++) {
+    for (let c=0; c<GRID; c++) {
+      const cell = grid[r][c];
+      if (cell.type !== 'building') continue;
+      const b = BUILDINGS[cell.bIdx];
+      let key = null;
+      if (b.cat==='Wood')     key='wood';
+      else if (b.cat==='Stone')    key='stone';
+      else if (b.cat==='Hardwood') key='hardwood';
+      else if (b.cat==='Iron')     key='iron';
+      else if (b.cat==='Civic')    key='gold';
+      if (key) {
+        res[key]++;
+        totals[key]++;
+        spawnPopup(c, r, '+1 '+RES_EMOJI[key]);
+        changed = true;
       }
     }
   }
-  return null;
+  if (changed) {
+    updateHUD(); renderHand();
+    // Show production summary labels above resource bar
+    for (const [key, amt] of Object.entries(totals)) {
+      if (amt > 0) showProdLabel(key, amt);
+    }
+  }
 }
- 
-// ============== INPUT ==============
-let hoverCell = null;
- 
-canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const scale = canvas.width / rect.width;
-  const mx = (e.clientX - rect.left) * scale;
-  const my = (e.clientY - rect.top) * scale;
-  const { pad, cellW, cellH } = getCellCoords();
-  const c = Math.floor((mx - pad) / cellW);
-  const r = Math.floor((my - pad) / cellH);
-  if (r >= 0 && r < N && c >= 0 && c < N) hoverCell = { r, c };
-  else hoverCell = null;
-});
- 
-canvas.addEventListener('mouseleave', () => { hoverCell = null; });
- 
-canvas.addEventListener('click', (e) => {
-  if (gameOver || cpuThinking) return;
-  if (playerTypes[currentPlayer] !== 'human') return;
-  if (selectedValue === null) return;
-  const rect = canvas.getBoundingClientRect();
-  const scale = canvas.width / rect.width;
-  const mx = (e.clientX - rect.left) * scale;
-  const my = (e.clientY - rect.top) * scale;
-  const { pad, cellW, cellH } = getCellCoords();
-  const c = Math.floor((mx - pad) / cellW);
-  const r = Math.floor((my - pad) / cellH);
-  if (r < 0 || r >= N || c < 0 || c >= N) return;
-  if (isValidMove(currentPlayer, selectedValue, r, c)) {
-    executeMove(currentPlayer, selectedValue, r, c);
+
+// ═══════════════════════════════════════════════════════════
+//  PRODUCTION SUMMARY LABELS
+// ═══════════════════════════════════════════════════════════
+function showProdLabel(key, amount) {
+  const el = document.getElementById('prod-'+key);
+  if (!el) return;
+  el.textContent = '+'+amount+' '+RES_EMOJI[key];
+  el.classList.remove('show');
+  void el.offsetWidth; // force reflow
+  el.classList.add('show');
+  if (el._hideTimer) clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => { el.classList.remove('show'); }, 2000);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GOLD SHOP
+// ═══════════════════════════════════════════════════════════
+const SHOP_GAINS = { wood:3, stone:3, hardwood:2, iron:2 };
+
+function buyResource(type) {
+  if (res.gold < 1) { flashToast('❌ Need 1 💰 Gold to purchase resources!'); return; }
+  res.gold -= 1;
+  res[type] += SHOP_GAINS[type];
+  updateHUD(); renderHand();
+  flashToast('💰 Purchased: +'+SHOP_GAINS[type]+' '+RES_EMOJI[type]+'!');
+}
+
+function updateShopBtns() {
+  const ok = res.gold >= 1;
+  document.getElementById('buy-wood').disabled     = !ok;
+  document.getElementById('buy-stone').disabled    = !ok;
+  document.getElementById('buy-hardwood').disabled = !ok;
+  document.getElementById('buy-iron').disabled     = !ok;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HUD
+// ═══════════════════════════════════════════════════════════
+function updateHUD() {
+  for (const k of ['wood','stone','hardwood','iron','gold']) {
+    const el = document.getElementById('hv-'+k);
+    if (el && el.textContent !== String(res[k])) {
+      el.textContent = res[k];
+      el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+    }
   }
-});
- 
-canvas.addEventListener('touchend', (e) => {
-  e.preventDefault();
-  if (gameOver || cpuThinking) return;
-  if (playerTypes[currentPlayer] !== 'human') return;
-  if (selectedValue === null) return;
-  const touch = e.changedTouches[0];
-  const rect = canvas.getBoundingClientRect();
-  const scale = canvas.width / rect.width;
-  const mx = (touch.clientX - rect.left) * scale;
-  const my = (touch.clientY - rect.top) * scale;
-  const { pad, cellW, cellH } = getCellCoords();
-  const c = Math.floor((mx - pad) / cellW);
-  const r = Math.floor((my - pad) / cellH);
-  if (r < 0 || r >= N || c < 0 || c >= N) return;
-  if (isValidMove(currentPlayer, selectedValue, r, c)) {
-    executeMove(currentPlayer, selectedValue, r, c);
+  const pe = document.getElementById('hv-pop');
+  if (pe && pe.textContent !== String(pop)) { pe.textContent = pop; pe.classList.remove('pulse'); void pe.offsetWidth; pe.classList.add('pulse'); }
+  const de = document.getElementById('hv-def');
+  if (de && de.textContent !== String(def)) { de.textContent = def; de.classList.remove('pulse'); void de.offsetWidth; de.classList.add('pulse'); }
+  updateShopBtns();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  HAND / CARDS
+// ═══════════════════════════════════════════════════════════
+function renderHand() {
+  const panel = document.getElementById('hand-panel');
+  panel.innerHTML = '';
+
+  // 5 building cards
+  hand.forEach((bi, i) => {
+    const b   = BUILDINGS[bi];
+    const aff = canAfford(b);
+    const sel = (i === selCard);
+    const cc  = CAT_COLOR[b.cat] || '#666';
+    const tileRow = (bi/6)|0, tileCol = bi%6;
+
+    const card = document.createElement('div');
+    card.className = 'card' + (sel?' selected':'') + (aff?'':' unaffordable');
+    card.style.setProperty('--cc', cc);
+
+    if (sel) {
+      const badge = document.createElement('div');
+      badge.className = 'card-badge';
+      badge.textContent = '▼ SELECTED';
+      card.appendChild(badge);
+    }
+
+    // Discard button (✕)
+    const discBtn = document.createElement('div');
+    discBtn.className = 'discard-btn';
+    discBtn.title = 'Discard this card (free)';
+    discBtn.textContent = '✕';
+    discBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      discardCard(i);
+    });
+    card.appendChild(discBtn);
+
+    const img = document.createElement('img');
+    img.className = 'card-img';
+    img.src = `tiles/tile_${tileRow}x${tileCol}_${bi}.png`;
+    img.alt = b.name;
+    img.draggable = false;
+    card.appendChild(img);
+
+    const name = document.createElement('div');
+    name.className = 'card-name';
+    name.textContent = b.name;
+    card.appendChild(name);
+
+    const cat = document.createElement('div');
+    cat.className = 'card-cat';
+    cat.textContent = b.emoji+' '+b.cat;
+    card.appendChild(cat);
+
+    const eff = document.createElement('div');
+    eff.className = 'card-effect';
+    eff.textContent = b.effect;
+    card.appendChild(eff);
+
+    const costs = document.createElement('div');
+    costs.className = 'card-costs';
+    const costDefs = [
+      {k:'wood',     e:'🌲', v:b.wood},
+      {k:'stone',    e:'🗿', v:b.stone},
+      {k:'hardwood', e:'🌳', v:b.hardwood},
+      {k:'iron',     e:'🔩', v:b.iron},
+    ];
+    let anyCost = false;
+    for (const {k, e, v} of costDefs) {
+      if (v <= 0) continue;
+      anyCost = true;
+      const chip = document.createElement('span');
+      chip.className = 'cost-chip' + (res[k] < v ? ' lacking' : '');
+      chip.textContent = e+v;
+      costs.appendChild(chip);
+    }
+    if (!anyCost) {
+      const chip = document.createElement('span');
+      chip.className = 'cost-chip';
+      chip.style.color = '#86efac';
+      chip.textContent = 'Free';
+      costs.appendChild(chip);
+    }
+    card.appendChild(costs);
+
+    card.addEventListener('click', () => {
+      selCard = (selCard === i) ? -1 : i;
+      if (selCard >= 0) roadMode = false;
+      renderHand();
+      updateModeHint();
+    });
+
+    panel.appendChild(card);
+  });
+
+  // Permanent road card (6th slot — never discarded)
+  const roadCard = document.createElement('div');
+  roadCard.className = 'card road-card' + (roadMode ? ' selected' : '');
+  roadCard.style.setProperty('--cc', '#c4a35a');
+
+  const roadBadge = document.createElement('div');
+  roadBadge.className = 'card-badge';
+  roadBadge.style.background = roadMode ? '#c4a35a' : '#5a4520';
+  roadBadge.style.color = '#f5e6c0';
+  roadBadge.textContent = roadMode ? '▼ SELECTED' : 'ROAD';
+  roadCard.appendChild(roadBadge);
+
+  const roadIcon = document.createElement('div');
+  roadIcon.className = 'card-road-icon';
+  roadIcon.textContent = '🛤';
+  roadCard.appendChild(roadIcon);
+
+  const roadName = document.createElement('div');
+  roadName.className = 'card-name';
+  roadName.textContent = 'Road';
+  roadCard.appendChild(roadName);
+
+  const roadCat = document.createElement('div');
+  roadCat.className = 'card-cat';
+  roadCat.style.color = '#c4a35a';
+  roadCat.textContent = '🛤 Infrastructure';
+  roadCard.appendChild(roadCat);
+
+  const roadEff = document.createElement('div');
+  roadEff.className = 'card-effect';
+  roadEff.textContent = 'Connects buildings';
+  roadCard.appendChild(roadEff);
+
+  const roadCosts = document.createElement('div');
+  roadCosts.className = 'card-costs';
+  const roadChip = document.createElement('span');
+  roadChip.className = 'cost-chip' + (res.wood < 1 ? ' lacking' : '');
+  roadChip.textContent = '🌲1/tile';
+  roadCosts.appendChild(roadChip);
+  roadCard.appendChild(roadCosts);
+
+  roadCard.addEventListener('click', () => {
+    roadMode = !roadMode;
+    if (roadMode) selCard = -1;
+    renderHand();
+    updateModeHint();
+  });
+
+  panel.appendChild(roadCard);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MODE HINT
+// ═══════════════════════════════════════════════════════════
+function updateModeHint() {
+  const h = document.getElementById('mode-hint-bar');
+  if (!h) return;
+  if (roadMode) {
+    h.textContent = '🛤️ Click a cell to place road';
+    h.style.color = '#c4a35a';
+  } else if (selCard >= 0 && selCard < hand.length) {
+    const b = BUILDINGS[hand[selCard]];
+    h.textContent = '🏗️ Click a cell to place ' + b.name;
+    h.style.color = '#86efac';
+  } else {
+    h.textContent = 'Select a card or the Road card to build';
+    h.style.color = '#8899aa';
   }
-});
- 
-document.getElementById('boardSize').addEventListener('change', initGame);
-document.getElementById('piecesPerValue').addEventListener('change', initGame);
-document.getElementById('playerXType').addEventListener('change', initGame);
-document.getElementById('playerOType').addEventListener('change', initGame);
-document.getElementById('restartBtn').addEventListener('click', initGame);
-window.addEventListener('resize', resizeCanvas);
- 
-// ============== START ==============
-initGame();
-requestAnimationFrame(render);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  MILESTONES / TOASTS
+// ═══════════════════════════════════════════════════════════
+function checkMilestones() {
+  if (!milestones.pop20 && pop >= 20) {
+    milestones.pop20 = true;
+    flashToast('🏆 Growing City! Population reached 20!');
+    addMilestoneLog('🏆 Growing City!', 'Population reached 20');
+  }
+  if (!milestones.allPrestige) {
+    const ps = new Set();
+    for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++) {
+      const cell = grid[r][c];
+      if (cell.type==='building' && BUILDINGS[cell.bIdx].cat==='Prestige') ps.add(cell.bIdx);
+    }
+    if (ps.size >= 4) {
+      milestones.allPrestige = true;
+      flashToast('💎 Legendary City! All Prestige buildings constructed!');
+      addMilestoneLog('💎 Legendary City!', 'All Prestige buildings built');
+    }
+  }
+  if (!milestones.halfFill) {
+    let filled = 0;
+    for (let r=0;r<GRID;r++) for (let c=0;c<GRID;c++) if (grid[r][c].type!=='empty') filled++;
+    if (filled >= HALF_GRID_CELLS) {
+      milestones.halfFill = true;
+      flashToast('🗺️ Bustling Metropolis! 50% of the city is built!');
+      addMilestoneLog('🗺️ Bustling Metropolis!', '50% of the city filled');
+    }
+  }
+}
+
+function addMilestoneLog(label, detail) {
+  const elapsed = (performance.now() - _gameStartPerf) / 1000;
+  const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const s = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  const entry = document.createElement('div');
+  entry.className = 'ms-entry';
+  entry.innerHTML =
+    '<span class="ms-label">' + label + '</span>' +
+    '<span>' + detail + '</span>' +
+    '<span class="ms-time">⏱️ ' + m + ':' + s + '</span>';
+  document.getElementById('milestone-log').appendChild(entry);
+}
+
+let _toastTimer = null;
+function flashToast(msg) {
+  let existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  if (_toastTimer) clearTimeout(_toastTimer);
+
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+
+  _toastTimer = setTimeout(() => {
+    t.style.opacity = '0';
+    setTimeout(() => { if (t.parentNode) t.remove(); }, 480);
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FLOATING POPUP (above building on grid)
+// ═══════════════════════════════════════════════════════════
+function spawnPopup(col, row, text) {
+  const wrap = document.getElementById('canvas-wrap');
+  const cr = canvas.getBoundingClientRect();
+  const wr = wrap.getBoundingClientRect();
+  const cw = cr.width / GRID, ch = cr.height / GRID;
+  const x = (cr.left - wr.left) + (col + 0.5) * cw;
+  const y = (cr.top  - wr.top)  + row * ch + ch * 0.2;
+
+  const d = document.createElement('div');
+  d.textContent = text;
+  d.style.cssText = [
+    'position:absolute',
+    `left:${x}px`,
+    `top:${y}px`,
+    'transform:translateX(-50%)',
+    'color:#ffe580',
+    'font-size:13px',
+    'font-weight:700',
+    'text-shadow:0 1px 4px rgba(0,0,0,0.9)',
+    'pointer-events:none',
+    'z-index:200',
+    'white-space:nowrap',
+    'opacity:1',
+    'transition:top 1.4s ease-out, opacity 1.4s ease-in',
+  ].join(';');
+  wrap.appendChild(d);
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    d.style.top = (y - 55) + 'px';
+    d.style.opacity = '0';
+  }));
+  setTimeout(() => { if (d.parentNode) d.remove(); }, 1500);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EVENTS
+// ═══════════════════════════════════════════════════════════
+function cellFromEvent(e) {
+  const r = canvas.getBoundingClientRect();
+  const sx = canvas.width / r.width;
+  const sy = canvas.height / r.height;
+  const x = (e.clientX - r.left) * sx;
+  const y = (e.clientY - r.top)  * sy;
+  const col = (x / (canvas.width  / GRID)) | 0;
+  const row = (y / (canvas.height / GRID)) | 0;
+  if (col<0||col>=GRID||row<0||row>=GRID) return null;
+  return {col, row};
+}
+
+function bindEvents() {
+  canvas.addEventListener('click', e => {
+    const c = cellFromEvent(e);
+    if (c) handleClick(c.col, c.row);
+  });
+  canvas.addEventListener('mousemove', e => {
+    hoverCell = cellFromEvent(e);
+  });
+  canvas.addEventListener('mouseleave', () => { hoverCell = null; });
+
+  document.getElementById('buy-wood').addEventListener('click',     () => buyResource('wood'));
+  document.getElementById('buy-stone').addEventListener('click',    () => buyResource('stone'));
+  document.getElementById('buy-hardwood').addEventListener('click', () => buyResource('hardwood'));
+  document.getElementById('buy-iron').addEventListener('click',     () => buyResource('iron'));
+
+  window.addEventListener('resize', resizeCv);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  LOADING
+// ═══════════════════════════════════════════════════════════
+function loadImages() {
+  return new Promise(resolve => {
+    let done = 0;
+    const imgs = new Array(36);
+    for (let i=0; i<36; i++) {
+      const r=(i/6)|0, c=i%6;
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      imgs[i] = img;
+      img.onload = img.onerror = () => {
+        done++;
+        const pct = (done/36)*100;
+        document.getElementById('progress-bar').style.width = pct+'%';
+        document.getElementById('loading-text').textContent = `Loading tiles… ${done} / 36`;
+        if (done===36) resolve(imgs);
+      };
+      img.src = `tiles/tile_${r}x${c}_${i}.png`;
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+async function init() {
+  await loadImages();
+
+  document.getElementById('loading-screen').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+
+  if (!initGL()) return;
+
+  // Grid init
+  for (let r=0; r<GRID; r++) {
+    grid[r] = [];
+    for (let c=0; c<GRID; c++) grid[r][c] = {type:'empty', bIdx:-1, placedAt:0};
+  }
+  // Town Center at grid center
+  grid[5][5] = {type:'building', bIdx:TOWN_CENTER_INDEX, placedAt:0};
+
+  initDeck();
+  bindEvents();
+  updateHUD(); renderHand(); updateModeHint(); renderTileOverlay();
+
+  requestAnimationFrame(render);
+}
+
+init();
 </script>
 </body>
 </html>

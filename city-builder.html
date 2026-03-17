@@ -211,6 +211,8 @@ const CAT_COLOR = {
 const RES_EMOJI = { wood:'🪵', stone:'🪨', hardwood:'🌳', iron:'🔩', gold:'💰' };
 const GRID = 12;
 const HALF_GRID_CELLS = (GRID * GRID) / 2; // 72 cells = 50% of 144
+const DRIP_SEC = 10; // seconds between resource drips
+const TOWN_CENTER_INDEX = 26; // Town Hall tile used as starting Town Center
 
 // ═══════════════════════════════════════════════════════════
 //  STATE
@@ -543,7 +545,7 @@ function shuffle(arr) {
 }
 
 function initDeck() {
-  deck = Array.from({length:36},(_,i)=>i).filter(i=>i!==26);
+  deck = Array.from({length:36},(_,i)=>i).filter(i=>i!==TOWN_CENTER_INDEX);
   shuffle(deck);
   hand=[]; discard=[];
   for (let i=0;i<5;i++) dealCard();
@@ -647,13 +649,13 @@ function renderHand() {
       {k:'iron', e:'🔩', v:b.iron, col:'#5a7888'},
     ];
     let anyCost = false;
-    for (const {k, e, v, col: fColor} of costDefs) {
+    for (const {k, e, v, col: color} of costDefs) {
       if (v <= 0) continue;
       anyCost = true;
       const chip = document.createElement('span');
       const lacking = res[k] < v;
       chip.className = 'cost-chip' + (lacking?' lacking':'');
-      chip.style.color = lacking ? '#ff6666' : fColor;
+      chip.style.color = lacking ? '#ff6666' : color;
       chip.textContent = e+v;
       costs.appendChild(chip);
     }
@@ -862,7 +864,7 @@ async function init() {
     for (let c=0; c<GRID; c++) grid[r][c] = {type:'empty', bIdx:-1, placedAt:0};
   }
   // Town Center at (5,5) — index 26, permanent, no animation
-  grid[5][5] = {type:'building', bIdx:26, placedAt:0};
+  grid[5][5] = {type:'building', bIdx:TOWN_CENTER_INDEX, placedAt:0};
 
   // Deck + hand
   initDeck();

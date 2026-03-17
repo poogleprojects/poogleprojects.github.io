@@ -161,13 +161,20 @@
   // ══════════════════════════════════════════════════════════════════
   // CONSTANTS
   // ══════════════════════════════════════════════════════════════════
-  const BASE_OAR_SPEED    = 2.5;
-  const CANNON_RANGE      = 300;
-  const CANNON_CONE       = 25 * Math.PI / 180;
-  const CANNON_RELOAD     = 2.0;
-  const BOARD_RANGE       = 80;
-  const GRAPPLE_SNAP_DIST = 120;
-  const PIRATE_DROWN_TIME = 30;
+  const BASE_OAR_SPEED           = 2.5;
+  const CANNON_RANGE             = 300;
+  const CANNON_CONE              = 25 * Math.PI / 180;
+  const CANNON_RELOAD            = 2.0;
+  const CANNON_DAMAGE_MIN        = 8;
+  const CANNON_DAMAGE_SPREAD     = 4;    // damage = CANNON_DAMAGE_MIN + random * CANNON_DAMAGE_SPREAD
+  const CREW_OVERBOARD_CHANCE    = 0.2;  // 20% chance per cannonball hit
+  const BOARDING_DPS_PER_CREW    = 1.5;  // HP/s of boarding damage per crew-count delta
+  const BOARDING_DEFENDER_MULT   = 1.5;  // defender takes this multiplier of boarding damage
+  const BOARD_RANGE              = 80;
+  const GRAPPLE_SNAP_DIST        = 120;
+  const PIRATE_DROWN_TIME        = 30;
+  const MAP_SAFE_SPAWN_BOUNDARY  = 1280; // max |x| or |z| for respawn positions
+  const KEYS_TO_PREVENT_DEFAULT  = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '];
 
   const PLAYER_COLORS     = [0xff4444, 0x4488ff, 0x44cc44, 0xffcc00, 0xcc44ff];
   const PLAYER_COLORS_CSS = ['#ff4444', '#4488ff', '#44cc44', '#ffcc00', '#cc44ff'];
@@ -778,12 +785,12 @@
         const dx = cb.mesh.position.x - ship.position.x;
         const dz = cb.mesh.position.z - ship.position.y;
         if (Math.sqrt(dx*dx + dz*dz) < 15) {
-          const dmg = 8 + Math.random() * 4;
+          const dmg = CANNON_DAMAGE_MIN + Math.random() * CANNON_DAMAGE_SPREAD;
           ship.hull -= dmg;
           cb.shooter.damageDealt += dmg;
 
-          // Crew overboard (20%)
-          if (Math.random() < 0.2 && ship.crew > 0) {
+          // Crew overboard chance
+          if (Math.random() < CREW_OVERBOARD_CHANCE && ship.crew > 0) {
             spawnPirateOverboard(ship, cb.mesh.position);
           }
 
@@ -878,13 +885,13 @@
 
         const s1Bigger  = ship1.crew >= ship2.crew;
         const crewDelta = Math.max(1, Math.abs(ship1.crew - ship2.crew));
-        const dps       = 1.5 * crewDelta;
+        const dps       = BOARDING_DPS_PER_CREW * crewDelta;
 
         if (s1Bigger) {
-          ship1.hull -= dps * 1.0;   // attacker
-          ship2.hull -= dps * 1.5;   // defender
+          ship1.hull -= dps * 1.0;                     // attacker
+          ship2.hull -= dps * BOARDING_DEFENDER_MULT;  // defender
         } else {
-          ship1.hull -= dps * 1.5;
+          ship1.hull -= dps * BOARDING_DEFENDER_MULT;
           ship2.hull -= dps * 1.0;
         }
 
@@ -1089,7 +1096,7 @@
     for (let attempt = 0; attempt < 50; attempt++) {
       const x = (Math.random() - 0.5) * 2400;
       const z = (Math.random() - 0.5) * 2400;
-      if (Math.abs(x) > 1280 || Math.abs(z) > 1280) continue;
+      if (Math.abs(x) > MAP_SAFE_SPAWN_BOUNDARY || Math.abs(z) > MAP_SAFE_SPAWN_BOUNDARY) continue;
 
       const pos = new THREE.Vector2(x, z);
       if (pos.distanceTo(deathPos) < 400) continue;
@@ -1554,7 +1561,7 @@
   // ══════════════════════════════════════════════════════════════════
   window.addEventListener('keydown', e => {
     keys[e.key] = true;
-    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    if (KEYS_TO_PREVENT_DEFAULT.includes(e.key)) e.preventDefault();
     if (e.key === 'Escape') togglePause();
   });
 

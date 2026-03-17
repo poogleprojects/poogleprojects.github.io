@@ -157,6 +157,27 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
   box-shadow: 0 4px 24px rgba(0,0,0,0.6);
   transition: opacity 0.45s; white-space: nowrap;
 }
+
+/* Milestone log – persistent top-right panel */
+#milestone-log {
+  position: fixed; top: 48px; right: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  z-index: 4000; pointer-events: none; max-width: 280px;
+}
+.ms-entry {
+  background: rgba(10,20,35,0.88); color: #e2e8f0;
+  border: 1px solid #2a5a3a; border-radius: 8px;
+  padding: 7px 12px; font-size: 13px; font-weight: 600;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.55);
+  display: flex; flex-direction: column; gap: 2px;
+  animation: msSlideIn 0.35s ease-out;
+}
+@keyframes msSlideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.ms-label { color: #ffd700; }
+.ms-time  { color: #94a3b8; font-size: 11px; font-weight: 400; }
 </style>
 </head>
 <body>
@@ -178,6 +199,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
     <div class="hud-sep"></div>
     <div class="hud-item" style="margin-left:auto;">⏱️ <span id="hud-time">00:00</span></div>
   </div>
+
+  <!-- Persistent milestone log (top-right) -->
+  <div id="milestone-log"></div>
 
   <!-- Canvas -->
   <div id="canvas-wrap">
@@ -299,6 +323,7 @@ const TOWN_CENTER_INDEX = 26;
 let res = { wood:5, stone:3, hardwood:0, iron:0, gold:0 };
 let pop = 0, def = 0;
 let gameStart = 0, lastDripIdx = 0;
+let _gameStartPerf = 0;
 let grid = [];
 let deck = [], hand = [], discard = [];
 let selCard = -1; // index into hand (-1 = none)
@@ -424,7 +449,8 @@ function drawCol(x, y, w, h, r, g, b, a) {
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
-// Draw textured quad — UV origin (0,0) = top-left of image (FLIP_Y=true)
+// Draw textured quad — with UNPACK_FLIP_Y_WEBGL=true, v=0 = top of image.
+// UV mapping: (0,0)=top-left, (1,1)=bottom-right, matching Y-down screen space.
 const _tv = new Float32Array(24);
 function drawTex(x, y, w, h, tex) {
   if (!tex) return;
@@ -480,7 +506,7 @@ function fitRect(cx, cy, cellW, cellH, imgW, imgH) {
 // ═══════════════════════════════════════════════════════════
 function render(ts) {
   resizeCv();
-  if (gameStart === 0) { gameStart = ts; lastDripIdx = 0; }
+  if (gameStart === 0) { gameStart = ts; lastDripIdx = 0; _gameStartPerf = performance.now(); }
 
   const elapsed = (ts - gameStart) / 1000;
   const di = Math.floor(elapsed / DRIP_SEC);
@@ -925,6 +951,7 @@ function checkMilestones() {
   if (!milestones.pop20 && pop >= 20) {
     milestones.pop20 = true;
     flashToast('🏆 Growing City! Population reached 20!');
+    addMilestoneLog('🏆 Growing City!', 'Population reached 20');
   }
   if (!milestones.allPrestige) {
     const ps = new Set();
@@ -935,6 +962,7 @@ function checkMilestones() {
     if (ps.size >= 4) {
       milestones.allPrestige = true;
       flashToast('💎 Legendary City! All Prestige buildings constructed!');
+      addMilestoneLog('💎 Legendary City!', 'All Prestige buildings built');
     }
   }
   if (!milestones.halfFill) {
@@ -943,8 +971,22 @@ function checkMilestones() {
     if (filled >= HALF_GRID_CELLS) {
       milestones.halfFill = true;
       flashToast('🗺️ Bustling Metropolis! 50% of the city is built!');
+      addMilestoneLog('🗺️ Bustling Metropolis!', '50% of the city filled');
     }
   }
+}
+
+function addMilestoneLog(label, detail) {
+  const elapsed = (performance.now() - _gameStartPerf) / 1000;
+  const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const s = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  const entry = document.createElement('div');
+  entry.className = 'ms-entry';
+  entry.innerHTML =
+    '<span class="ms-label">' + label + '</span>' +
+    '<span>' + detail + '</span>' +
+    '<span class="ms-time">⏱️ ' + m + ':' + s + '</span>';
+  document.getElementById('milestone-log').appendChild(entry);
 }
 
 let _toastTimer = null;

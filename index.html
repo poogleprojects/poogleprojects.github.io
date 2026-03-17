@@ -15,7 +15,42 @@
     align-items: center;
     min-height: 100vh;
     overflow-x: hidden;
+    padding-top: 44px;
   }
+  /* ── Game Nav Bar ── */
+  #gameNav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    background: rgba(0, 5, 20, 0.95);
+    border-bottom: 1px solid rgba(255, 215, 0, 0.18);
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 44px;
+    padding: 0 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #gameNav::-webkit-scrollbar { display: none; }
+  #gameNav a {
+    color: rgba(255, 215, 0, 0.65);
+    text-decoration: none;
+    font-size: 0.78rem;
+    letter-spacing: 0.5px;
+    padding: 0 11px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    border-right: 1px solid rgba(255,215,0,0.1);
+    transition: color 0.18s, background 0.18s;
+  }
+  #gameNav a:first-child { border-left: 1px solid rgba(255,215,0,0.1); }
+  #gameNav a:hover { color: #ffd700; background: rgba(255,215,0,0.07); }
+  #gameNav a.current { color: #ffd700; background: rgba(255,215,0,0.1); }
+  #gameNav a.new-game { color: #ffdd44; font-weight: bold; border-color: rgba(255,215,0,0.25); }
+  #gameNav a.new-game:hover { color: #fff; background: rgba(255,200,0,0.15); }
   h1 {
     margin-top: 18px;
     font-size: 2rem;
@@ -142,6 +177,15 @@
 </style>
 </head>
 <body>
+<nav id="gameNav">
+  <a href="SmallWorlds.html">🌍 Small Worlds</a>
+  <a href="TinyWorlds.html">🔬 Tiny Worlds</a>
+  <a href="VikingTrails.html">⚔️ Viking Trails</a>
+  <a href="billards-carrom.html">🎱 Billiards &amp; Carrom</a>
+  <a href="pong4.html">🏓 Pong 4</a>
+  <a href="tactical-tictactoe.html" class="current">⚔️ Tactical TTT</a>
+  <a href="PirateSeas.html" class="new-game">🏴‍☠️ Pirate Seas ✨</a>
+</nav>
 <h1>⚔️ Tactical Tic-Tac-Toe</h1>
  
 <div class="settings" id="settingsBar">

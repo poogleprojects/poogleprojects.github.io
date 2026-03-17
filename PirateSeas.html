@@ -1,0 +1,1626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>🏴‍☠️ Pirate Seas</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #001428; color: #eee; font-family: 'Georgia', serif; overflow: hidden; width: 100vw; height: 100vh; }
+    #glCanvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+
+    /* ── Screens ── */
+    .screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; z-index: 10; }
+
+    #menuScreen { background: linear-gradient(160deg, rgba(0,8,25,0.97) 0%, rgba(0,20,50,0.97) 100%); flex-direction: column; gap: 28px; }
+
+    .menu-title { font-size: 3.2rem; color: #ffd700; text-shadow: 0 0 20px #ff8800, 0 0 45px #ff4400; letter-spacing: 5px; text-align: center; }
+    .menu-subtitle { font-size: 0.95rem; color: rgba(255,215,0,0.5); letter-spacing: 3px; text-align: center; margin-top: -16px; }
+
+    .player-setup { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+    .setup-label { color: rgba(255,255,255,0.5); font-size: 0.85rem; letter-spacing: 2px; text-transform: uppercase; }
+
+    .player-count-row { display: flex; gap: 10px; }
+    .player-count-btn { width: 50px; height: 50px; border: 2px solid rgba(255,215,0,0.4); background: transparent; color: rgba(255,215,0,0.6); font-size: 1.3rem; cursor: pointer; border-radius: 6px; transition: all 0.2s; font-family: 'Georgia', serif; }
+    .player-count-btn.active { background: #ffd700; color: #001428; border-color: #ffd700; box-shadow: 0 0 14px rgba(255,215,0,0.5); }
+    .player-count-btn:hover:not(.active) { background: rgba(255,215,0,0.12); border-color: rgba(255,215,0,0.8); color: #ffd700; }
+
+    .player-slots { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    .player-slot { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; min-width: 82px; transition: border-color 0.2s; }
+    .player-slot.inactive { opacity: 0.25; pointer-events: none; }
+    .player-slot-label { font-size: 1rem; font-weight: bold; }
+    .player-type-btn { padding: 5px 10px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.35); color: #ccc; cursor: pointer; border-radius: 4px; font-size: 0.78rem; font-family: 'Georgia', serif; transition: all 0.2s; white-space: nowrap; }
+    .player-type-btn.human { background: rgba(0,100,255,0.25); border-color: #4488ff; color: #4488ff; }
+    .player-type-btn.cpu { background: rgba(255,100,0,0.15); border-color: #ff6600; color: #ff6600; }
+    .player-type-btn:disabled { opacity: 0.45; cursor: default; }
+
+    .start-btn { padding: 16px 44px; background: linear-gradient(135deg, #ffd700, #ff9900); color: #001428; border: none; font-size: 1.25rem; font-weight: bold; cursor: pointer; border-radius: 8px; letter-spacing: 3px; transition: all 0.2s; font-family: 'Georgia', serif; box-shadow: 0 0 20px rgba(255,200,0,0.3); }
+    .start-btn:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(255,200,0,0.5); }
+
+    .controls-hint { font-size: 0.72rem; color: rgba(255,255,255,0.3); text-align: center; max-width: 360px; line-height: 1.7; }
+
+    /* ── HUD ── */
+    #hudTop { position: fixed; top: 0; left: 0; right: 0; display: none; justify-content: center; gap: 8px; padding: 8px 56px 8px 8px; z-index: 20; background: linear-gradient(to bottom, rgba(0,8,25,0.82), transparent); pointer-events: none; flex-wrap: wrap; }
+    .ship-hud-card { background: rgba(0,8,25,0.72); border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; padding: 6px 10px; min-width: 86px; }
+    .ship-hud-name { font-size: 0.72rem; font-weight: bold; margin-bottom: 4px; }
+    .hull-bar-bg { background: rgba(255,255,255,0.1); height: 6px; border-radius: 3px; margin-bottom: 4px; overflow: hidden; }
+    .hull-bar { height: 100%; border-radius: 3px; transition: width 0.25s; }
+    .crew-pips { display: flex; gap: 2px; flex-wrap: wrap; }
+    .crew-pip { width: 6px; height: 6px; border-radius: 50%; }
+
+    #cannonHud { position: fixed; bottom: 20px; left: 20px; z-index: 20; background: rgba(0,8,25,0.78); border: 1px solid rgba(255,255,255,0.13); border-radius: 8px; padding: 10px 14px; pointer-events: none; display: none; min-width: 150px; }
+    #cannonHud2 { position: fixed; bottom: 20px; right: 20px; z-index: 20; background: rgba(0,8,25,0.78); border: 1px solid rgba(255,255,255,0.13); border-radius: 8px; padding: 10px 14px; pointer-events: none; display: none; min-width: 150px; }
+    .cannon-label { font-size: 0.68rem; color: #999; margin-bottom: 3px; }
+    .cannon-bar-bg { background: rgba(255,255,255,0.1); height: 7px; border-radius: 4px; margin-bottom: 7px; overflow: hidden; }
+    .cannon-bar { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #ff4400, #ffaa00); transition: width 0.05s; }
+
+    #boardingAlert { position: fixed; top: 48%; left: 50%; transform: translate(-50%,-50%); background: rgba(180,0,0,0.88); color: #fff; padding: 11px 26px; border-radius: 8px; font-size: 1.35rem; font-weight: bold; letter-spacing: 2px; z-index: 30; display: none; border: 1px solid rgba(255,100,100,0.6); animation: pulse 0.45s infinite alternate; pointer-events: none; }
+    @keyframes pulse { from { opacity: 0.75; transform: translate(-50%,-50%) scale(0.97); } to { opacity: 1; transform: translate(-50%,-50%) scale(1.04); } }
+
+    /* ── Wind Compass Canvases ── */
+    #windCanvas1, #windCanvas2 { position: fixed; z-index: 20; pointer-events: none; display: none; }
+
+    /* ── Pause Overlay ── */
+    #pauseOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.72); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 22px; z-index: 50; }
+    .pause-title { font-size: 2.6rem; color: #ffd700; text-shadow: 0 0 16px rgba(255,200,0,0.5); }
+    .pause-btn { padding: 13px 34px; font-size: 1.05rem; border: 2px solid rgba(255,215,0,0.6); background: rgba(0,8,25,0.8); color: #ffd700; cursor: pointer; border-radius: 6px; min-width: 210px; transition: all 0.2s; font-family: 'Georgia', serif; letter-spacing: 1px; }
+    .pause-btn:hover { background: rgba(255,215,0,0.15); border-color: #ffd700; }
+
+    /* ── Ship Lost Overlay ── */
+    #shipLostOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.78); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; z-index: 40; }
+    .ship-lost-title { font-size: 2.6rem; color: #ff4444; text-shadow: 0 0 18px rgba(255,50,50,0.6); }
+    .ship-lost-stats { background: rgba(0,8,25,0.85); border: 1px solid rgba(255,255,255,0.13); border-radius: 10px; padding: 22px 34px; min-width: 290px; }
+    .stat-row { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 10px; }
+    .stat-row:last-child { margin-bottom: 0; }
+    .stat-label { color: rgba(255,255,255,0.55); font-size: 0.9rem; }
+    .stat-value { color: #ffd700; font-weight: bold; font-size: 0.9rem; }
+    .respawn-countdown { font-size: 1.1rem; color: rgba(255,255,255,0.5); }
+
+    /* ── Menu Button ── */
+    #menuBtn { position: fixed; top: 8px; right: 8px; z-index: 60; background: rgba(0,8,25,0.82); border: 1px solid rgba(255,255,255,0.18); color: #ffd700; width: 40px; height: 40px; border-radius: 6px; font-size: 1.3rem; cursor: pointer; display: none; align-items: center; justify-content: center; transition: background 0.2s; }
+    #menuBtn:hover { background: rgba(255,215,0,0.15); }
+
+    /* ── Sail level indicator ── */
+    #sailIndicator { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 20; display: none; pointer-events: none; font-size: 0.75rem; color: rgba(255,255,255,0.45); text-align: center; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════ MAIN MENU ═══════════════════════ -->
+  <div id="menuScreen" class="screen">
+    <div class="menu-title">🏴‍☠️ PIRATE SEAS</div>
+    <div class="menu-subtitle">NAVAL COMBAT</div>
+    <div class="player-setup">
+      <div class="setup-label">Number of Players</div>
+      <div class="player-count-row" id="playerCountRow">
+        <button class="player-count-btn active" onclick="setPlayerCount(2)">2</button>
+        <button class="player-count-btn" onclick="setPlayerCount(3)">3</button>
+        <button class="player-count-btn" onclick="setPlayerCount(4)">4</button>
+        <button class="player-count-btn" onclick="setPlayerCount(5)">5</button>
+      </div>
+      <div class="player-slots" id="playerSlots"></div>
+    </div>
+    <button class="start-btn" onclick="startGame()">⚓ SET SAIL!</button>
+    <div class="controls-hint">
+      P1: <b>W/S</b> sail · <b>A/D</b> steer &nbsp;|&nbsp; P2: <b>↑/↓</b> sail · <b>←/→</b> steer<br>
+      Scroll to zoom · <b>☰</b> to pause
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ HUD ═══════════════════════ -->
+  <div id="hudTop"></div>
+
+  <div id="cannonHud">
+    <div class="cannon-label">PORT ◀</div>
+    <div class="cannon-bar-bg"><div class="cannon-bar" id="p1PortBar" style="width:100%"></div></div>
+    <div class="cannon-label">STARBOARD ▶</div>
+    <div class="cannon-bar-bg"><div class="cannon-bar" id="p1StarbBar" style="width:100%"></div></div>
+  </div>
+  <div id="cannonHud2">
+    <div class="cannon-label">PORT ◀</div>
+    <div class="cannon-bar-bg"><div class="cannon-bar" id="p2PortBar" style="width:100%"></div></div>
+    <div class="cannon-label">STARBOARD ▶</div>
+    <div class="cannon-bar-bg"><div class="cannon-bar" id="p2StarbBar" style="width:100%"></div></div>
+  </div>
+
+  <div id="boardingAlert">⚓ BOARDING!</div>
+  <canvas id="windCanvas1"></canvas>
+  <canvas id="windCanvas2"></canvas>
+  <div id="sailIndicator"></div>
+
+  <!-- ═══════════════════════ PAUSE OVERLAY ═══════════════════════ -->
+  <div id="pauseOverlay">
+    <div class="pause-title">⏸ PAUSED</div>
+    <button class="pause-btn" onclick="resumeGame()">▶ Resume</button>
+    <button class="pause-btn" onclick="returnToMenu()">🏠 Return to Main Menu</button>
+  </div>
+
+  <!-- ═══════════════════════ SHIP LOST OVERLAY ═══════════════════════ -->
+  <div id="shipLostOverlay">
+    <div class="ship-lost-title">💀 Ship Lost!</div>
+    <div class="ship-lost-stats">
+      <div class="stat-row"><span class="stat-label">Damage Dealt</span><span class="stat-value" id="statDamage">0</span></div>
+      <div class="stat-row"><span class="stat-label">Ships Sunk</span><span class="stat-value" id="statSunk">0</span></div>
+      <div class="stat-row"><span class="stat-label">Pirates Drowned</span><span class="stat-value" id="statDrowned">0</span></div>
+      <div class="stat-row"><span class="stat-label">Pirates Rescued</span><span class="stat-value" id="statRescued">0</span></div>
+      <div class="stat-row"><span class="stat-label">Cause</span><span class="stat-value" id="statCause">—</span></div>
+    </div>
+    <div class="respawn-countdown" id="respawnCountdown">Respawning in 5…</div>
+  </div>
+
+  <!-- ═══════════════════════ MENU BUTTON ═══════════════════════ -->
+  <button id="menuBtn" onclick="togglePause()">☰</button>
+
+  <!-- THREE.JS CANVAS -->
+  <canvas id="glCanvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
+  <script>
+  'use strict';
+
+  // ══════════════════════════════════════════════════════════════════
+  // CONSTANTS
+  // ══════════════════════════════════════════════════════════════════
+  const BASE_OAR_SPEED    = 2.5;
+  const CANNON_RANGE      = 300;
+  const CANNON_CONE       = 25 * Math.PI / 180;
+  const CANNON_RELOAD     = 2.0;
+  const BOARD_RANGE       = 80;
+  const GRAPPLE_SNAP_DIST = 120;
+  const PIRATE_DROWN_TIME = 30;
+
+  const PLAYER_COLORS     = [0xff4444, 0x4488ff, 0x44cc44, 0xffcc00, 0xcc44ff];
+  const PLAYER_COLORS_CSS = ['#ff4444', '#4488ff', '#44cc44', '#ffcc00', '#cc44ff'];
+  const PLAYER_NAMES      = ['P1','P2','P3','P4','P5'];
+
+  // ══════════════════════════════════════════════════════════════════
+  // THREE.JS RENDERER + SCENE
+  // ══════════════════════════════════════════════════════════════════
+  const canvas   = document.getElementById('glCanvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x001428);
+
+  const scene = new THREE.Scene();
+  scene.fog   = new THREE.FogExp2(0x001428, 0.0003);
+
+  let aspect = window.innerWidth / window.innerHeight;
+
+  // Orthographic camera looking straight down
+  let cameraZoom = 500;
+  const camera = new THREE.OrthographicCamera(
+    -cameraZoom * aspect, cameraZoom * aspect,
+     cameraZoom,         -cameraZoom,
+     1, 3000
+  );
+  camera.position.set(0, 1000, 0);
+  camera.up.set(0, 0, -1);
+  camera.lookAt(0, 0, 0);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x334455, 1.2));
+  const dirLight = new THREE.DirectionalLight(0xffeedd, 0.8);
+  dirLight.position.set(100, 200, -100);
+  scene.add(dirLight);
+
+  // ══════════════════════════════════════════════════════════════════
+  // WATER PLANE (animated shader)
+  // ══════════════════════════════════════════════════════════════════
+  const waterUniforms = { time: { value: 0 } };
+  const waterMaterial = new THREE.ShaderMaterial({
+    uniforms: waterUniforms,
+    vertexShader: `
+      uniform float time;
+      varying float vWave;
+      void main() {
+        vec3 pos = position;
+        float w = sin(pos.x * 0.022 + time * 0.75) * 1.6
+                + cos(pos.z * 0.016 + time * 0.58) * 1.3
+                + sin((pos.x + pos.z) * 0.011 + time * 1.05) * 0.9
+                + cos((pos.x - pos.z) * 0.008 + time * 0.4) * 0.6;
+        pos.y += w;
+        vWave  = clamp((w + 4.4) / 8.8, 0.0, 1.0);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying float vWave;
+      void main() {
+        vec3 deep    = vec3(0.0,  0.07, 0.20);
+        vec3 shallow = vec3(0.02, 0.19, 0.44);
+        vec3 foam    = vec3(0.22, 0.38, 0.60);
+        vec3 col = mix(deep, shallow, vWave);
+        col = mix(col, foam, max(0.0, vWave - 0.78) * 3.0);
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    side: THREE.DoubleSide
+  });
+
+  const waterGeo  = new THREE.PlaneGeometry(3000, 3000, 60, 60);
+  const waterMesh = new THREE.Mesh(waterGeo, waterMaterial);
+  waterMesh.rotation.x = -Math.PI / 2;
+  waterMesh.position.y = -2;
+  scene.add(waterMesh);
+
+  // ══════════════════════════════════════════════════════════════════
+  // GAME STATE
+  // ══════════════════════════════════════════════════════════════════
+  let ships           = [];
+  let cannonballs     = [];
+  let splashes        = [];
+  let piratesOverboard = [];
+  let grapplingHooks  = [];
+  let muzzleFlashes   = [];
+
+  let wind = { angle: 0, strength: 0.6, targetAngle: 0, targetStrength: 0.6, timer: 0 };
+  let gameTime     = 0;
+  let keys         = {};
+  let prevKeys     = {};
+  let numPlayers   = 2;
+  let playerTypes  = ['human','cpu','cpu','cpu','cpu'];
+  let cameraCenter = { x: 0, z: 0 };
+  let userZoomRadius = 500;
+  let gamePhase    = 'menu';
+
+  let shipLostShip  = null;
+  let shipLostTimer = 0;
+
+  let pirateCounter = 0; // unique index for pirate bobbing offset
+
+  // ══════════════════════════════════════════════════════════════════
+  // UTILITY
+  // ══════════════════════════════════════════════════════════════════
+  function normalizeAngle(a) {
+    while (a >  Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+  }
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function getSailEfficiency(shipAngle, windAngle) {
+    const diff = Math.abs(normalizeAngle(shipAngle - windAngle));
+    if (diff <= Math.PI / 4)       return 1.0;
+    if (diff <= Math.PI / 2)       return 1.0 - (diff - Math.PI/4) / (Math.PI/4) * 0.4;
+    if (diff <= 3 * Math.PI / 4)   return 0.6 - (diff - Math.PI/2) / (Math.PI/4) * 0.6;
+    return 0;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // VARIANCE (ship randomisation)
+  // ══════════════════════════════════════════════════════════════════
+  function createVariance() {
+    return {
+      lengthMult:        0.85 + Math.random() * 0.30,
+      widthMult:         0.90 + Math.random() * 0.20,
+      mastHeightMult:    0.80 + Math.random() * 0.40,
+      numMasts:          Math.random() < 0.4 ? 2 : 1,
+      sailType:          Math.random() < 0.5 ? 'square' : 'lateen',
+      hasCrowsNest:      Math.random() < 0.5,
+      hasBowsprit:       Math.random() < 0.7,
+      bowspritLengthMult:0.70 + Math.random() * 0.60,
+      numCannons:        2 + Math.floor(Math.random() * 3),
+      sternHeight:       3 + Math.random() * 3,
+      bowSharpness:      Math.random()
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // SHIP MESH BUILDER
+  // ══════════════════════════════════════════════════════════════════
+  function buildShipMesh(playerIndex, V) {
+    const group    = new THREE.Group();
+    const pColor   = PLAYER_COLORS[playerIndex];
+    const darkWood = new THREE.MeshLambertMaterial({ color: 0x2a1808 });
+    const midWood  = new THREE.MeshLambertMaterial({ color: 0x3a2010 });
+    const deckMat  = new THREE.MeshLambertMaterial({ color: pColor });
+    const sailMat  = new THREE.MeshLambertMaterial({ color: 0xeeddbb, side: THREE.DoubleSide });
+    const cannonMat= new THREE.MeshLambertMaterial({ color: 0x222222 });
+    const flagMat  = new THREE.MeshLambertMaterial({ color: pColor });
+
+    const W = 12 * V.widthMult;
+    const L = 28 * V.lengthMult;
+    const mastH = 20 * V.mastHeightMult;
+
+    // Hull body
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(W, 4, L), darkWood);
+    hull.position.y = 0;
+    group.add(hull);
+
+    // Coloured deck
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(W - 1, 1.1, L - 3), deckMat);
+    deck.position.y = 2.55;
+    group.add(deck);
+
+    // Bow (front = -Z when angle=0)
+    const bowDepth = 2 + V.bowSharpness * 4;
+    const bowGeo   = new THREE.CylinderGeometry(0, W / 2.5, bowDepth, 4);
+    const bow      = new THREE.Mesh(bowGeo, darkWood);
+    bow.rotation.x = -Math.PI / 2;  // tip points -Z
+    bow.rotation.z = Math.PI / 4;   // diamond cross-section
+    bow.position.set(0, 0, -(L / 2 + bowDepth / 2 - 1));
+    group.add(bow);
+
+    // Stern (back = +Z)
+    const stern = new THREE.Mesh(new THREE.BoxGeometry(W * 0.8, V.sternHeight, 3), midWood);
+    stern.position.set(0, V.sternHeight / 2, L / 2 - 1.5);
+    group.add(stern);
+
+    // Stern quarter details
+    const sqW = W * 0.4;
+    [-sqW / 2, sqW / 2].forEach(sx => {
+      const sq = new THREE.Mesh(new THREE.BoxGeometry(1, V.sternHeight * 0.6, 2), midWood);
+      sq.position.set(sx, V.sternHeight * 0.3, L / 2 + 0.5);
+      group.add(sq);
+    });
+
+    // Masts
+    const mastPositions = V.numMasts === 1
+      ? [0]
+      : [-L * 0.14, L * 0.14];
+
+    mastPositions.forEach((mz) => {
+      // Mast pole
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, mastH, 8), midWood);
+      mast.position.set(0, mastH / 2 + 2.5, mz);
+      group.add(mast);
+
+      if (V.sailType === 'square') {
+        // Yard arm
+        const yard = new THREE.Mesh(new THREE.BoxGeometry(W + 2.5, 0.65, 0.65), midWood);
+        yard.position.set(0, mastH * 0.86 + 2.5, mz);
+        group.add(yard);
+        // Square sail (flat horizontal panel, visible from top)
+        const sail = new THREE.Mesh(new THREE.BoxGeometry(W * 0.88, 0.35, mastH * 0.55), sailMat);
+        sail.position.set(0, mastH * 0.58 + 2.5, mz);
+        group.add(sail);
+        // Lower yard
+        const lyard = new THREE.Mesh(new THREE.BoxGeometry(W * 0.7, 0.5, 0.5), midWood);
+        lyard.position.set(0, mastH * 0.38 + 2.5, mz);
+        group.add(lyard);
+      } else {
+        // Lateen sail — two triangles lying flat (BufferGeometry)
+        const sv = new Float32Array([
+           0,          0,  0,
+           W * 0.78,   0,  0,
+           0,          0,  mastH * 0.62,
+           // back face
+           0,          0,  mastH * 0.62,
+           W * 0.78,   0,  0,
+           0,          0,  0,
+        ]);
+        const sGeo = new THREE.BufferGeometry();
+        sGeo.setAttribute('position', new THREE.BufferAttribute(sv, 3));
+        sGeo.computeVertexNormals();
+        const lsail = new THREE.Mesh(sGeo, sailMat);
+        lsail.position.set(-W * 0.38, mastH * 0.38 + 2.5, mz - mastH * 0.31);
+        group.add(lsail);
+        // Boom
+        const boom = new THREE.Mesh(new THREE.BoxGeometry(1, 1, mastH * 0.64), midWood);
+        boom.position.set(-W * 0.18, mastH * 0.42 + 2.5, mz - mastH * 0.05);
+        group.add(boom);
+      }
+
+      // Crow's nest
+      if (V.hasCrowsNest) {
+        const nest = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.6, 3.2), midWood);
+        nest.position.set(0, mastH * 0.66 + 2.5, mz);
+        group.add(nest);
+        // Nest railing suggestion (thin strip)
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.4, 3.8), darkWood);
+        rail.position.set(0, mastH * 0.66 + 2.5 + 0.8, mz);
+        group.add(rail);
+      }
+
+      // Flag at top
+      const flag = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.2, 2.6), flagMat);
+      flag.position.set(2.1, mastH + 3.0, mz);
+      group.add(flag);
+
+      // Flag pole top nub
+      const nub = new THREE.Mesh(new THREE.SphereGeometry(0.7, 6, 6), flagMat);
+      nub.position.set(0, mastH + 3.2, mz);
+      group.add(nub);
+    });
+
+    // Bowsprit
+    if (V.hasBowsprit) {
+      const bLen = 8 * V.bowspritLengthMult;
+      const bsp  = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.25, bLen), midWood);
+      bsp.position.set(0, 2.2, -(L / 2 + bLen / 2));
+      bsp.rotation.x = 0.12;
+      group.add(bsp);
+    }
+
+    // Cannons (port and starboard)
+    const cStep   = V.numCannons > 1 ? (L - 9) / (V.numCannons - 1) : 0;
+    const cStartZ = -(L / 2 - 4.5);
+    for (let c = 0; c < V.numCannons; c++) {
+      const cz = cStartZ + c * cStep;
+      const portC  = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.05, 1.25), cannonMat);
+      portC.position.set(-(W / 2 + 0.6), 2, cz);
+      group.add(portC);
+      const starbC = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.05, 1.25), cannonMat);
+      starbC.position.set( (W / 2 + 0.6), 2, cz);
+      group.add(starbC);
+    }
+
+    // Hull side strakes (decorative lines)
+    [-1, 1].forEach(side => {
+      const strake = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, L * 0.85), midWood);
+      strake.position.set(side * (W / 2 + 0.2), 1.2, 0);
+      group.add(strake);
+    });
+
+    return group;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CREATE SHIP OBJECT
+  // ══════════════════════════════════════════════════════════════════
+  function createShip(playerIndex, isHuman) {
+    const variance = createVariance();
+    const mesh     = buildShipMesh(playerIndex, variance);
+    scene.add(mesh);
+
+    return {
+      id:            playerIndex,
+      playerIndex:   playerIndex,
+      isHuman:       isHuman,
+      mesh:          mesh,
+      variance:      variance,
+      position:      new THREE.Vector2(0, 0),   // .x = worldX, .y = worldZ
+      angle:         Math.random() * Math.PI * 2,
+      speed:         0,
+      sailLevel:     0,
+      hull:          200,
+      crew:          8,
+      portCooldown:  0,
+      starbCooldown: 0,
+      grappled:      null,
+      aiState:       'patrol',
+      aiTimer:       0,
+      aiPatrolAngle: Math.random() * Math.PI * 2,
+      alive:         true,
+      sinking:       false,
+      sinkTimer:     0,
+      respawnTimer:  0,
+      deathPos:      new THREE.Vector2(),
+      damageDealt:   0,
+      shipsKilled:   0,
+      piratesDrowned:0,
+      piratesRescued:0,
+      lostCause:     ''
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // WIND
+  // ══════════════════════════════════════════════════════════════════
+  function updateWind(dt) {
+    wind.timer += dt;
+    if (wind.timer >= 10) {
+      wind.timer = 0;
+      wind.targetAngle    += (Math.random() - 0.5) * Math.PI / 6;
+      wind.targetStrength  = 0.2 + Math.random() * 0.8;
+    }
+    wind.angle    += (wind.targetAngle    - wind.angle)    * dt * 0.3;
+    wind.strength += (wind.targetStrength - wind.strength) * dt * 0.2;
+    wind.strength  = clamp(wind.strength, 0.2, 1.0);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // SAILING PHYSICS
+  // ══════════════════════════════════════════════════════════════════
+  function updateShipPhysics(ship, dt) {
+    if (!ship.alive || ship.sinking) return;
+
+    if (ship.isHuman) {
+      updateHumanControls(ship, dt);
+    } else {
+      updateAI(ship, dt);
+    }
+
+    // Sail efficiency and target speed
+    const eff = getSailEfficiency(ship.angle, wind.angle);
+    let targetSpeed;
+    if (ship.sailLevel === 0) {
+      targetSpeed = BASE_OAR_SPEED;
+    } else if (ship.sailLevel === 1) {
+      targetSpeed = Math.max(1.5, 6  * eff * wind.strength);
+    } else {
+      targetSpeed = Math.max(0.5, 12 * eff * wind.strength);
+    }
+
+    if (ship.grappled !== null) targetSpeed *= 0.6;
+
+    // Smooth speed
+    ship.speed += (targetSpeed - ship.speed) * dt * 2.2;
+
+    // Move forward: ship faces -Z when angle=0
+    const fx = Math.sin(ship.angle);
+    const fz = -Math.cos(ship.angle);
+    ship.position.x += fx * ship.speed * dt * 10;
+    ship.position.y += fz * ship.speed * dt * 10;  // Vector2.y == world Z
+
+    // Boundary push
+    const pLen = ship.position.length();
+    if (pLen > 1400) {
+      const push = clamp((pLen - 1400) / 200, 0, 1) * 8;
+      ship.position.x -= (ship.position.x / pLen) * push;
+      ship.position.y -= (ship.position.y / pLen) * push;
+    }
+
+    // Sync mesh
+    ship.mesh.position.set(ship.position.x, 0, ship.position.y);
+    ship.mesh.rotation.y = ship.angle;
+
+    // Cooldowns
+    if (ship.portCooldown  > 0) ship.portCooldown  -= dt;
+    if (ship.starbCooldown > 0) ship.starbCooldown -= dt;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // HUMAN CONTROLS  (edge-detect for sail toggle)
+  // ══════════════════════════════════════════════════════════════════
+  function updateHumanControls(ship, dt) {
+    const isP2     = ship.playerIndex === 1;
+    const upKey    = isP2 ? 'ArrowUp'    : 'w';
+    const downKey  = isP2 ? 'ArrowDown'  : 's';
+    const leftKey  = isP2 ? 'ArrowLeft'  : 'a';
+    const rightKey = isP2 ? 'ArrowRight' : 'd';
+
+    if (keys[upKey]   && !prevKeys[upKey])   ship.sailLevel = Math.min(2, ship.sailLevel + 1);
+    if (keys[downKey] && !prevKeys[downKey]) ship.sailLevel = Math.max(0, ship.sailLevel - 1);
+
+    const turnRates = [Math.PI / 2, Math.PI / 3, Math.PI / 6];
+    const turnRate  = turnRates[ship.sailLevel];
+
+    if (keys[leftKey])  ship.angle -= turnRate * dt;
+    if (keys[rightKey]) ship.angle += turnRate * dt;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CPU AI
+  // ══════════════════════════════════════════════════════════════════
+  function updateAI(ship, dt) {
+    // Find closest living enemy
+    let closestEnemy = null, closestEnemyDist = Infinity;
+    for (const other of ships) {
+      if (other.playerIndex === ship.playerIndex || !other.alive || other.sinking) continue;
+      const d = ship.position.distanceTo(other.position);
+      if (d < closestEnemyDist) { closestEnemyDist = d; closestEnemy = other; }
+    }
+
+    // Find own pirate overboard within 150 units
+    let closestPirate = null, closestPirateDist = Infinity;
+    for (const p of piratesOverboard) {
+      if (p.ownerIndex !== ship.playerIndex) continue;
+      const dx = p.mesh.position.x - ship.position.x;
+      const dz = p.mesh.position.z - ship.position.y;
+      const d  = Math.sqrt(dx*dx + dz*dz);
+      if (d < 150 && d < closestPirateDist) { closestPirateDist = d; closestPirate = p; }
+    }
+
+    // State transitions
+    if (ship.hull < 60) {
+      ship.aiState = 'evade';
+    } else if (closestPirate) {
+      ship.aiState = 'rescue';
+    } else if (closestEnemy && closestEnemyDist <= BOARD_RANGE) {
+      ship.aiState = 'board';
+    } else if (closestEnemy && closestEnemyDist <= CANNON_RANGE) {
+      ship.aiState = 'broadside';
+    } else if (closestEnemy && closestEnemyDist <= 600) {
+      ship.aiState = 'intercept';
+    } else {
+      ship.aiState = 'patrol';
+    }
+
+    const turnRates = [Math.PI / 2, Math.PI / 3, Math.PI / 6];
+    let targetAngle = ship.angle;
+
+    switch (ship.aiState) {
+      case 'patrol': {
+        ship.aiPatrolAngle += 0.3 * dt;
+        const tx = Math.cos(ship.aiPatrolAngle) * 800;
+        const tz = Math.sin(ship.aiPatrolAngle) * 800;
+        targetAngle = Math.atan2(tx - ship.position.x, -(tz - ship.position.y));
+        ship.sailLevel = 1;
+        break;
+      }
+      case 'intercept': {
+        if (closestEnemy) {
+          const dx = closestEnemy.position.x - ship.position.x;
+          const dz = closestEnemy.position.y - ship.position.y;
+          targetAngle = Math.atan2(dx, -dz);
+          ship.sailLevel = 2;
+        }
+        break;
+      }
+      case 'broadside': {
+        if (closestEnemy) {
+          const dx = closestEnemy.position.x - ship.position.x;
+          const dz = closestEnemy.position.y - ship.position.y;
+          // Alternate between port and starboard beam approach
+          const baseAngle = Math.atan2(dx, -dz);
+          const portDiff  = Math.abs(normalizeAngle(ship.angle - (baseAngle - Math.PI/2)));
+          const starbDiff = Math.abs(normalizeAngle(ship.angle - (baseAngle + Math.PI/2)));
+          targetAngle = portDiff < starbDiff
+            ? baseAngle - Math.PI / 2
+            : baseAngle + Math.PI / 2;
+          ship.sailLevel = 1;
+        }
+        break;
+      }
+      case 'board': {
+        if (closestEnemy) {
+          const dx = closestEnemy.position.x - ship.position.x;
+          const dz = closestEnemy.position.y - ship.position.y;
+          targetAngle = Math.atan2(dx, -dz);
+          ship.sailLevel = 0;
+        }
+        break;
+      }
+      case 'evade': {
+        if (closestEnemy) {
+          const dx = closestEnemy.position.x - ship.position.x;
+          const dz = closestEnemy.position.y - ship.position.y;
+          targetAngle = Math.atan2(dx, -dz) + Math.PI;
+          ship.sailLevel = 2;
+        }
+        break;
+      }
+      case 'rescue': {
+        if (closestPirate) {
+          const dx = closestPirate.mesh.position.x - ship.position.x;
+          const dz = closestPirate.mesh.position.z - ship.position.y;
+          targetAngle = Math.atan2(dx, -dz);
+          ship.sailLevel = 1;
+        }
+        break;
+      }
+    }
+
+    // Steer toward target
+    const turnRate  = turnRates[ship.sailLevel];
+    const angleDiff = normalizeAngle(targetAngle - ship.angle);
+    ship.angle += clamp(angleDiff, -turnRate * dt, turnRate * dt);
+
+    // Reduce sail level when wind efficiency is very low
+    const eff = getSailEfficiency(ship.angle, wind.angle);
+    if      (eff < 0.10 && ship.sailLevel >= 1) ship.sailLevel = 0;
+    else if (eff < 0.20 && ship.sailLevel === 2) ship.sailLevel = 1;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CANNONS
+  // ══════════════════════════════════════════════════════════════════
+  function checkCannons(ship) {
+    if (!ship.alive || ship.sinking) return;
+
+    for (const enemy of ships) {
+      if (enemy.playerIndex === ship.playerIndex || !enemy.alive || enemy.sinking) continue;
+
+      const dx   = enemy.position.x - ship.position.x;
+      const dz   = enemy.position.y - ship.position.y;
+      const dist = Math.sqrt(dx*dx + dz*dz);
+      if (dist > CANNON_RANGE) continue;
+
+      const angleToEnemy = Math.atan2(dx, -dz);
+
+      // Port beam (ship left = ship.angle - PI/2)
+      const portBeam  = ship.angle - Math.PI / 2;
+      const portDiff  = Math.abs(normalizeAngle(angleToEnemy - portBeam));
+      if (portDiff < CANNON_CONE && ship.portCooldown <= 0) {
+        fireCannonball(ship, enemy, 'port');
+        ship.portCooldown = CANNON_RELOAD;
+      }
+
+      // Starboard beam (ship right = ship.angle + PI/2)
+      const starbBeam = ship.angle + Math.PI / 2;
+      const starbDiff = Math.abs(normalizeAngle(angleToEnemy - starbBeam));
+      if (starbDiff < CANNON_CONE && ship.starbCooldown <= 0) {
+        fireCannonball(ship, enemy, 'starboard');
+        ship.starbCooldown = CANNON_RELOAD;
+      }
+    }
+  }
+
+  function fireCannonball(ship, target, side) {
+    const dx   = target.position.x - ship.position.x;
+    const dz   = target.position.y - ship.position.y;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+    if (dist < 0.1) return;
+
+    // Cannonball mesh
+    const geo  = new THREE.SphereGeometry(1.2, 6, 6);
+    const mat  = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const mesh = new THREE.Mesh(geo, mat);
+
+    // Side offset: perpendicular to ship heading
+    // Ship right (starboard) = (cos(angle), 0, sin(angle)) in world space
+    const sideSign = side === 'port' ? -1 : 1;
+    const sx = ship.position.x + Math.cos(ship.angle) * sideSign * 8;
+    const sz = ship.position.y + Math.sin(ship.angle) * sideSign * 8;
+    mesh.position.set(sx, 2, sz);
+    scene.add(mesh);
+
+    cannonballs.push({
+      mesh,
+      velX:     (dx / dist) * 150,
+      velZ:     (dz / dist) * 150,
+      target,
+      shooter:  ship,
+      lifetime: 0
+    });
+
+    // Muzzle flash
+    const fMat   = new THREE.MeshBasicMaterial({ color: 0xffaa22, transparent: true, opacity: 1.0 });
+    const fMesh  = new THREE.Mesh(new THREE.SphereGeometry(4, 8, 8), fMat);
+    fMesh.position.set(sx, 3, sz);
+    scene.add(fMesh);
+    muzzleFlashes.push({ mesh: fMesh, timer: 0.12 });
+  }
+
+  function updateCannonballs(dt) {
+    for (let i = cannonballs.length - 1; i >= 0; i--) {
+      const cb = cannonballs[i];
+      cb.mesh.position.x += cb.velX * dt;
+      cb.mesh.position.z += cb.velZ * dt;
+      cb.lifetime += dt;
+
+      let hit = false;
+      for (const ship of ships) {
+        if (ship === cb.shooter || !ship.alive || ship.sinking) continue;
+        const dx = cb.mesh.position.x - ship.position.x;
+        const dz = cb.mesh.position.z - ship.position.y;
+        if (Math.sqrt(dx*dx + dz*dz) < 15) {
+          const dmg = 8 + Math.random() * 4;
+          ship.hull -= dmg;
+          cb.shooter.damageDealt += dmg;
+
+          // Crew overboard (20%)
+          if (Math.random() < 0.2 && ship.crew > 0) {
+            spawnPirateOverboard(ship, cb.mesh.position);
+          }
+
+          spawnSplash(cb.mesh.position.x, cb.mesh.position.z);
+
+          if ((ship.hull <= 0 || ship.crew === 0) && !ship.sinking) {
+            ship.lostCause = ship.hull <= 0 ? 'Hull destroyed' : 'All crew lost';
+            startSinking(ship, cb.shooter);
+          }
+
+          hit = true;
+          break;
+        }
+      }
+
+      if (hit || cb.lifetime > 3.5) {
+        if (!hit) spawnSplash(cb.mesh.position.x, cb.mesh.position.z);
+        scene.remove(cb.mesh);
+        cannonballs.splice(i, 1);
+      }
+    }
+  }
+
+  function spawnSplash(x, z) {
+    const mat  = new THREE.MeshBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(new THREE.RingGeometry(2, 3, 16), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, -0.8, z);
+    scene.add(mesh);
+    splashes.push({ mesh, timer: 0, maxTime: 0.8, isBubble: false });
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // GRAPPLING HOOKS
+  // ══════════════════════════════════════════════════════════════════
+  function checkGrappling(ship) {
+    if (!ship.alive || ship.sinking || ship.grappled) return;
+
+    for (const enemy of ships) {
+      if (enemy.playerIndex === ship.playerIndex || !enemy.alive || enemy.sinking) continue;
+      if (enemy.grappled) continue;
+
+      const dist = ship.position.distanceTo(enemy.position);
+      if (dist <= BOARD_RANGE) {
+        // Build line connecting the two ships
+        const pts = [
+          new THREE.Vector3(ship.position.x,  2, ship.position.y),
+          new THREE.Vector3(enemy.position.x, 2, enemy.position.y)
+        ];
+        const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xddaa44, linewidth: 2 });
+        const line    = new THREE.Line(lineGeo, lineMat);
+        scene.add(line);
+
+        const hook = { line, ship1: ship, ship2: enemy, boardingTimer: 0 };
+        grapplingHooks.push(hook);
+        ship.grappled  = hook;
+        enemy.grappled = hook;
+        break;
+      }
+    }
+  }
+
+  function updateGrappling(dt) {
+    for (let i = grapplingHooks.length - 1; i >= 0; i--) {
+      const hook = grapplingHooks[i];
+      const { ship1, ship2 } = hook;
+
+      const dist = ship1.position.distanceTo(ship2.position);
+      const snap = dist > GRAPPLE_SNAP_DIST
+        || !ship1.alive || !ship2.alive
+        || ship1.sinking || ship2.sinking;
+
+      if (snap) {
+        scene.remove(hook.line);
+        if (ship1.grappled === hook) ship1.grappled = null;
+        if (ship2.grappled === hook) ship2.grappled = null;
+        grapplingHooks.splice(i, 1);
+        continue;
+      }
+
+      // Update line endpoints
+      const pos = hook.line.geometry.attributes.position;
+      pos.setXYZ(0, ship1.position.x, 2, ship1.position.y);
+      pos.setXYZ(1, ship2.position.x, 2, ship2.position.y);
+      pos.needsUpdate = true;
+
+      // Boarding damage every second
+      hook.boardingTimer += dt;
+      if (hook.boardingTimer >= 1) {
+        hook.boardingTimer = 0;
+
+        const s1Bigger  = ship1.crew >= ship2.crew;
+        const crewDelta = Math.max(1, Math.abs(ship1.crew - ship2.crew));
+        const dps       = 1.5 * crewDelta;
+
+        if (s1Bigger) {
+          ship1.hull -= dps * 1.0;   // attacker
+          ship2.hull -= dps * 1.5;   // defender
+        } else {
+          ship1.hull -= dps * 1.5;
+          ship2.hull -= dps * 1.0;
+        }
+
+        if ((ship1.hull <= 0 || ship1.crew === 0) && !ship1.sinking) {
+          ship1.lostCause = 'Boarded';
+          startSinking(ship1, ship2);
+        }
+        if ((ship2.hull <= 0 || ship2.crew === 0) && !ship2.sinking) {
+          ship2.lostCause = 'Boarded';
+          startSinking(ship2, ship1);
+        }
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CREW OVERBOARD
+  // ══════════════════════════════════════════════════════════════════
+  function spawnPirateOverboard(ship, impactPos) {
+    if (ship.crew <= 0) return;
+    ship.crew--;
+
+    const mat  = new THREE.MeshLambertMaterial({ color: 0xff8833 });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1.5, 6, 6), mat);
+    mesh.position.set(
+      impactPos.x + (Math.random() - 0.5) * 30,
+      1,
+      impactPos.z + (Math.random() - 0.5) * 30
+    );
+    scene.add(mesh);
+
+    // Countdown ring
+    const ringMat  = new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+    const ring     = new THREE.Mesh(new THREE.RingGeometry(2.5, 3.5, 32), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.copy(mesh.position);
+    ring.position.y = -0.3;
+    scene.add(ring);
+
+    piratesOverboard.push({
+      mesh,
+      ring,
+      ownerIndex: ship.playerIndex,
+      timer:      PIRATE_DROWN_TIME,
+      idx:        pirateCounter++
+    });
+  }
+
+  function updatePiratesOverboard(dt) {
+    for (let i = piratesOverboard.length - 1; i >= 0; i--) {
+      const pirate = piratesOverboard[i];
+      pirate.timer -= dt;
+
+      // Bobbing
+      pirate.mesh.position.y = 1 + Math.sin(gameTime * 2 + pirate.idx) * 0.5;
+
+      // Ring countdown scale
+      const t = clamp(pirate.timer / PIRATE_DROWN_TIME, 0, 1);
+      pirate.ring.scale.set(t, 1, t);
+      pirate.ring.position.copy(pirate.mesh.position);
+      pirate.ring.position.y = -0.3;
+
+      let remove = pirate.timer <= 0;
+
+      if (!remove) {
+        for (const ship of ships) {
+          if (!ship.alive || ship.sinking) continue;
+          const dx = pirate.mesh.position.x - ship.position.x;
+          const dz = pirate.mesh.position.z - ship.position.y;
+          if (Math.sqrt(dx*dx + dz*dz) < 12) {
+            if (ship.playerIndex === pirate.ownerIndex) {
+              ship.crew++;
+              ship.piratesRescued++;
+            } else {
+              ship.piratesDrowned++;
+            }
+            remove = true;
+            break;
+          }
+        }
+      }
+
+      if (remove) {
+        scene.remove(pirate.mesh);
+        scene.remove(pirate.ring);
+        piratesOverboard.splice(i, 1);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // SINKING
+  // ══════════════════════════════════════════════════════════════════
+  function startSinking(ship, killer) {
+    if (ship.sinking || !ship.alive) return;
+    ship.sinking = true;
+    ship.sinkTimer = 0;
+    ship.deathPos.copy(ship.position);
+
+    if (killer && killer !== ship) killer.shipsKilled++;
+
+    // Snap any grapple
+    if (ship.grappled) {
+      const hook = ship.grappled;
+      scene.remove(hook.line);
+      if (hook.ship1.grappled === hook) hook.ship1.grappled = null;
+      if (hook.ship2.grappled === hook) hook.ship2.grappled = null;
+      const idx = grapplingHooks.indexOf(hook);
+      if (idx >= 0) grapplingHooks.splice(idx, 1);
+    }
+  }
+
+  function updateSinking(dt) {
+    for (const ship of ships) {
+      if (!ship.sinking) continue;
+      ship.sinkTimer += dt;
+
+      // Dramatic sinking animation
+      ship.mesh.rotation.z = Math.sin(ship.sinkTimer * 3) * 0.5 * (ship.sinkTimer / 2);
+      ship.mesh.position.y = -(ship.sinkTimer / 2) * 8;
+
+      // Bubble particles
+      if (Math.random() < dt * 9) {
+        spawnBubble(ship.position.x, ship.position.y);
+      }
+
+      if (ship.sinkTimer >= 2) {
+        scene.remove(ship.mesh);
+        ship.alive   = false;
+        ship.sinking = false;
+
+        if (ship.isHuman && shipLostShip === null) {
+          showShipLostOverlay(ship);
+        } else {
+          ship.respawnTimer = 5;
+        }
+      }
+    }
+  }
+
+  function spawnBubble(worldX, worldZ) {
+    const mat  = new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.65 });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.4 + Math.random() * 0.6, 4, 4), mat);
+    mesh.position.set(
+      worldX + (Math.random() - 0.5) * 22,
+      -2 + Math.random() * 2,
+      worldZ + (Math.random() - 0.5) * 22
+    );
+    scene.add(mesh);
+    splashes.push({ mesh, timer: 0, maxTime: 1.4 + Math.random() * 0.6, isBubble: true, velY: 2.5 + Math.random() * 3 });
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // VISUAL EFFECTS UPDATE
+  // ══════════════════════════════════════════════════════════════════
+  function updateVisualEffects(dt) {
+    // Muzzle flashes
+    for (let i = muzzleFlashes.length - 1; i >= 0; i--) {
+      const f = muzzleFlashes[i];
+      f.timer -= dt;
+      f.mesh.material.opacity = clamp(f.timer / 0.12, 0, 1);
+      if (f.timer <= 0) {
+        scene.remove(f.mesh);
+        muzzleFlashes.splice(i, 1);
+      }
+    }
+
+    // Splashes + bubbles
+    for (let i = splashes.length - 1; i >= 0; i--) {
+      const s   = splashes[i];
+      s.timer  += dt;
+      const pct = s.timer / s.maxTime;
+
+      if (s.isBubble) {
+        s.mesh.position.y         += s.velY * dt;
+        s.mesh.material.opacity    = 0.65 * (1 - pct);
+      } else {
+        const sc = 1 + pct * 3.5;
+        s.mesh.scale.set(sc, 1, sc);
+        s.mesh.material.opacity = 0.85 * (1 - pct);
+      }
+
+      if (s.timer >= s.maxTime) {
+        scene.remove(s.mesh);
+        splashes.splice(i, 1);
+      }
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // RESPAWN
+  // ══════════════════════════════════════════════════════════════════
+  function updateRespawns(dt) {
+    for (const ship of ships) {
+      if (ship.alive || ship.sinking || ship.respawnTimer <= 0) continue;
+      ship.respawnTimer -= dt;
+      if (ship.respawnTimer <= 0) respawnShip(ship);
+    }
+  }
+
+  function findRespawnPosition(deathPos) {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const x = (Math.random() - 0.5) * 2400;
+      const z = (Math.random() - 0.5) * 2400;
+      if (Math.abs(x) > 1280 || Math.abs(z) > 1280) continue;
+
+      const pos = new THREE.Vector2(x, z);
+      if (pos.distanceTo(deathPos) < 400) continue;
+
+      let tooClose = false;
+      for (const other of ships) {
+        if (!other.alive) continue;
+        if (pos.distanceTo(other.position) < 200) { tooClose = true; break; }
+      }
+      if (!tooClose) return pos;
+    }
+    // Fallback: random map edge
+    const ang = Math.random() * Math.PI * 2;
+    return new THREE.Vector2(Math.cos(ang) * 1100, Math.sin(ang) * 1100);
+  }
+
+  function respawnShip(ship) {
+    const pos = findRespawnPosition(ship.deathPos);
+
+    ship.position.copy(pos);
+    ship.angle        = Math.random() * Math.PI * 2;
+    ship.speed        = 0;
+    ship.sailLevel    = 0;
+    ship.hull         = 200;
+    ship.crew         = 8;
+    ship.portCooldown = 0;
+    ship.starbCooldown= 0;
+    ship.grappled     = null;
+    ship.alive        = true;
+    ship.sinking      = false;
+    ship.sinkTimer    = 0;
+    ship.respawnTimer = 0;
+
+    // Fresh look
+    ship.variance = createVariance();
+    ship.mesh     = buildShipMesh(ship.playerIndex, ship.variance);
+    ship.mesh.position.set(pos.x, 0, pos.y);
+    ship.mesh.rotation.y = ship.angle;
+    scene.add(ship.mesh);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // CAMERA
+  // ══════════════════════════════════════════════════════════════════
+  function updateCamera(dt) {
+    const humanShips = ships.filter(s => s.isHuman && s.alive && !s.sinking);
+    const allCpu     = ships.every(s => !s.isHuman);
+
+    let targetX = cameraCenter.x, targetZ = cameraCenter.z, zoom = userZoomRadius;
+
+    if (allCpu) {
+      targetX = 0; targetZ = 0; zoom = 900;
+    } else if (humanShips.length === 0) {
+      // no change — keep current
+    } else if (humanShips.length === 1) {
+      targetX = humanShips[0].position.x;
+      targetZ = humanShips[0].position.y;
+      zoom    = userZoomRadius;
+    } else {
+      let minX =  Infinity, maxX = -Infinity;
+      let minZ =  Infinity, maxZ = -Infinity;
+      for (const s of humanShips) {
+        minX = Math.min(minX, s.position.x); maxX = Math.max(maxX, s.position.x);
+        minZ = Math.min(minZ, s.position.y); maxZ = Math.max(maxZ, s.position.y);
+      }
+      targetX = (minX + maxX) / 2;
+      targetZ = (minZ + maxZ) / 2;
+      const reqZoom = Math.max(maxX - minX, maxZ - minZ) * 0.7;
+      zoom = Math.max(reqZoom * 1.15, userZoomRadius);
+    }
+
+    const lerpSpeed = Math.min(1, 5 * dt);
+    cameraCenter.x += (targetX - cameraCenter.x) * lerpSpeed;
+    cameraCenter.z += (targetZ - cameraCenter.z) * lerpSpeed;
+    cameraZoom     += (zoom    - cameraZoom)     * Math.min(1, 3 * dt);
+
+    aspect = window.innerWidth / window.innerHeight;
+    camera.left   = -cameraZoom * aspect;
+    camera.right  =  cameraZoom * aspect;
+    camera.top    =  cameraZoom;
+    camera.bottom = -cameraZoom;
+    camera.position.set(cameraCenter.x, 1000, cameraCenter.z);
+    camera.lookAt(cameraCenter.x, 0, cameraCenter.z);
+    camera.updateProjectionMatrix();
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // HUD
+  // ══════════════════════════════════════════════════════════════════
+  function updateHUD() {
+    const hudTop = document.getElementById('hudTop');
+    // Rebuild only when needed — using innerHTML is fine at 60fps for few cards
+    let html = '';
+    for (const ship of ships) {
+      const css  = PLAYER_COLORS_CSS[ship.playerIndex];
+      const pct  = clamp(ship.hull / 200 * 100, 0, 100);
+      const hclr = pct > 50 ? '#44cc44' : pct > 25 ? '#ffcc00' : '#ff4444';
+      const name = PLAYER_NAMES[ship.playerIndex] + (ship.isHuman ? '' : ' CPU');
+      const dead = !ship.alive ? ' ☠' : '';
+      let pips   = '';
+      for (let c = 0; c < 8; c++) {
+        const bg = c < Math.ceil(ship.crew) ? css : '#2a2a2a';
+        pips += `<div class="crew-pip" style="background:${bg}"></div>`;
+      }
+      html += `<div class="ship-hud-card" style="border-color:${css}33">
+        <div class="ship-hud-name" style="color:${css}">${name}${dead}</div>
+        <div class="hull-bar-bg"><div class="hull-bar" style="width:${pct}%;background:${hclr}"></div></div>
+        <div class="crew-pips">${pips}</div>
+      </div>`;
+    }
+    hudTop.innerHTML = html;
+
+    // Cannon bars for human ships
+    const p1 = ships.find(s => s.playerIndex === 0 && s.isHuman);
+    const p2 = ships.find(s => s.playerIndex === 1 && s.isHuman);
+
+    const ch1 = document.getElementById('cannonHud');
+    if (p1 && p1.alive) {
+      ch1.style.display = 'block';
+      document.getElementById('p1PortBar').style.width  = clamp((1 - p1.portCooldown  / CANNON_RELOAD) * 100, 0, 100) + '%';
+      document.getElementById('p1StarbBar').style.width = clamp((1 - p1.starbCooldown / CANNON_RELOAD) * 100, 0, 100) + '%';
+    } else {
+      ch1.style.display = 'none';
+    }
+
+    const ch2 = document.getElementById('cannonHud2');
+    if (p2 && p2.alive) {
+      ch2.style.display = 'block';
+      document.getElementById('p2PortBar').style.width  = clamp((1 - p2.portCooldown  / CANNON_RELOAD) * 100, 0, 100) + '%';
+      document.getElementById('p2StarbBar').style.width = clamp((1 - p2.starbCooldown / CANNON_RELOAD) * 100, 0, 100) + '%';
+    } else {
+      ch2.style.display = 'none';
+    }
+
+    // Boarding alert
+    const boarding = ships.some(s => s.isHuman && s.grappled !== null);
+    document.getElementById('boardingAlert').style.display = boarding ? 'block' : 'none';
+
+    // Sail indicator for human ships
+    const sailInd = document.getElementById('sailIndicator');
+    const humanAlive = ships.filter(s => s.isHuman && s.alive);
+    if (humanAlive.length > 0) {
+      const labels = ['⚓ OARS', '🌬 HALF SAIL', '💨 FULL SAIL'];
+      const parts  = humanAlive.map(s => `${PLAYER_NAMES[s.playerIndex]}: ${labels[s.sailLevel]}`);
+      sailInd.textContent = parts.join('   ·   ');
+      sailInd.style.display = 'block';
+    } else {
+      sailInd.style.display = 'none';
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // WIND COMPASS OVERLAY
+  // ══════════════════════════════════════════════════════════════════
+  function drawWindCompass(ctx, cx, cy, radius, ship) {
+    ctx.save();
+
+    // Background disc
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 8, 25, 0.68)';
+    ctx.fill();
+
+    // Efficiency colour sectors (72 slices)
+    const sliceAngle = (Math.PI * 2) / 72;
+    for (let i = 0; i < 72; i++) {
+      const worldHeading = ship.angle + (i / 72) * Math.PI * 2;
+      const eff = getSailEfficiency(worldHeading, wind.angle);
+      let color;
+      if      (eff > 0.6) color = `rgba(50,210,50,${0.38 + eff * 0.45})`;
+      else if (eff > 0.3) color = `rgba(220,210,50,${0.32 + eff * 0.45})`;
+      else                color = `rgba(220,50,50,${0.24 + eff * 0.3})`;
+
+      const a0 = (i / 72) * Math.PI * 2 - Math.PI / 2 - sliceAngle * 0.5;
+      const a1 = a0 + sliceAngle + 0.02;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, radius - 5, a0, a1);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+
+    // Border ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(200,175,80,0.55)';
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+
+    // Cardinal labels (N always up = ship forward)
+    const cardinals = [['N', 0], ['E', Math.PI/2], ['S', Math.PI], ['W', 3*Math.PI/2]];
+    ctx.font         = `bold ${Math.round(radius * 0.19)}px Georgia`;
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    for (const [lbl, ang] of cardinals) {
+      const da = ang - Math.PI / 2;
+      const lx = cx + Math.cos(da) * (radius - 13);
+      const ly = cy + Math.sin(da) * (radius - 13);
+      ctx.fillStyle = lbl === 'N' ? '#ffd700' : 'rgba(255,255,255,0.7)';
+      ctx.fillText(lbl, lx, ly);
+    }
+
+    // Ship forward arrow (white, points up = forward)
+    const ah = radius * 0.48, aw = 5, ab = cy + radius * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(cx,    cy - ah);
+    ctx.lineTo(cx - aw * 1.4, cy - ah * 0.3);
+    ctx.lineTo(cx + aw * 1.4, cy - ah * 0.3);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fill();
+    ctx.fillRect(cx - aw * 0.6, cy - ah * 0.3, aw * 1.2, radius * 0.42);
+
+    // Wind arrow (blue) — direction wind blows relative to ship
+    const relWind = wind.angle - ship.angle;
+    const wdx = Math.sin(relWind);
+    const wdy = -Math.cos(relWind);
+    const wr  = radius * 0.52;
+    const wx  = cx + wdx * wr;
+    const wy  = cy + wdy * wr;
+
+    ctx.save();
+    ctx.translate(wx, wy);
+    ctx.rotate(relWind);
+    ctx.beginPath();
+    ctx.moveTo(0, -13);
+    ctx.lineTo(-5, 5);
+    ctx.lineTo(0, 1);
+    ctx.lineTo(5, 5);
+    ctx.closePath();
+    ctx.fillStyle = '#3399ff';
+    ctx.shadowColor = '#66bbff';
+    ctx.shadowBlur  = 6;
+    ctx.fill();
+    ctx.restore();
+
+    // Wind strength bar
+    const barY = cy + radius + 8;
+    const barW = radius * 1.65;
+    const barX = cx - barW / 2;
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(barX, barY, barW, 6);
+    ctx.fillStyle = `rgba(51,153,255,${0.6 + wind.strength * 0.4})`;
+    ctx.fillRect(barX, barY, barW * wind.strength, 6);
+
+    // Sail level label
+    const sailLbls = ['NO SAIL','HALF SAIL','FULL SAIL'];
+    ctx.font      = `${Math.round(radius * 0.17)}px Georgia`;
+    ctx.fillStyle = 'rgba(255,255,255,0.62)';
+    ctx.textAlign = 'center';
+    ctx.fillText(sailLbls[ship.sailLevel], cx, barY + 18);
+
+    ctx.restore();
+  }
+
+  function updateWindOverlays() {
+    const humanShips = ships.filter(s => s.isHuman);
+    const p1 = humanShips.find(s => s.playerIndex === 0);
+    const p2 = humanShips.find(s => s.playerIndex === 1);
+
+    const wc1 = document.getElementById('windCanvas1');
+    const wc2 = document.getElementById('windCanvas2');
+    const twoHuman = !!(p1 && p2);
+
+    if (p1) {
+      wc1.style.display = 'block';
+      const radius    = twoHuman ? 55 : 80;
+      const totalW    = (radius + 28) * 2;
+      const totalH    = (radius + 28) * 2 + 30;
+      wc1.width       = totalW;
+      wc1.height      = totalH;
+      wc1.style.right  = '16px';
+      wc1.style.top    = '58px';
+      wc1.style.left   = '';
+      wc1.style.bottom = '';
+
+      const ctx1 = wc1.getContext('2d');
+      ctx1.clearRect(0, 0, totalW, totalH);
+      const ship1 = p1.alive ? p1 : { angle: 0, sailLevel: 0 };
+      drawWindCompass(ctx1, totalW / 2, radius + 14, radius, ship1);
+    } else {
+      wc1.style.display = 'none';
+    }
+
+    if (p2) {
+      wc2.style.display = 'block';
+      const radius    = 55;
+      const totalW    = (radius + 28) * 2;
+      const totalH    = (radius + 28) * 2 + 30;
+      wc2.width       = totalW;
+      wc2.height      = totalH;
+      wc2.style.left   = '16px';
+      wc2.style.bottom = '80px';
+      wc2.style.right  = '';
+      wc2.style.top    = '';
+
+      const ctx2 = wc2.getContext('2d');
+      ctx2.clearRect(0, 0, totalW, totalH);
+      const ship2 = p2.alive ? p2 : { angle: 0, sailLevel: 0 };
+      drawWindCompass(ctx2, totalW / 2, radius + 14, radius, ship2);
+    } else {
+      wc2.style.display = 'none';
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // SHIP LOST OVERLAY
+  // ══════════════════════════════════════════════════════════════════
+  function showShipLostOverlay(ship) {
+    shipLostShip  = ship;
+    shipLostTimer = 5;
+
+    document.getElementById('statDamage').textContent  = Math.round(ship.damageDealt);
+    document.getElementById('statSunk').textContent    = ship.shipsKilled;
+    document.getElementById('statDrowned').textContent = ship.piratesDrowned;
+    document.getElementById('statRescued').textContent = ship.piratesRescued;
+    document.getElementById('statCause').textContent   = ship.lostCause || 'Unknown';
+    document.getElementById('respawnCountdown').textContent = 'Respawning in 5…';
+    document.getElementById('shipLostOverlay').style.display = 'flex';
+  }
+
+  function updateShipLostOverlay(dt) {
+    if (!shipLostShip) return;
+    shipLostTimer -= dt;
+    const secs = Math.max(1, Math.ceil(shipLostTimer));
+    document.getElementById('respawnCountdown').textContent = `Respawning in ${secs}…`;
+
+    if (shipLostTimer <= 0) {
+      document.getElementById('shipLostOverlay').style.display = 'none';
+      respawnShip(shipLostShip);
+      shipLostShip = null;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // MENU / UI
+  // ══════════════════════════════════════════════════════════════════
+  function setPlayerCount(n) {
+    numPlayers = n;
+    document.querySelectorAll('.player-count-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', i + 2 === n);
+    });
+    updatePlayerSlots();
+  }
+
+  function updatePlayerSlots() {
+    const container = document.getElementById('playerSlots');
+    container.innerHTML = '';
+
+    for (let i = 0; i < 5; i++) {
+      const active  = i < numPlayers;
+      const css     = PLAYER_COLORS_CSS[i];
+      const slot    = document.createElement('div');
+      slot.className = 'player-slot' + (active ? '' : ' inactive');
+      slot.style.borderColor = css + '55';
+
+      const label  = document.createElement('div');
+      label.className = 'player-slot-label';
+      label.style.color = css;
+      label.textContent = `P${i + 1}`;
+      slot.appendChild(label);
+
+      const btn = document.createElement('button');
+      btn.className = `player-type-btn ${playerTypes[i]}`;
+
+      if (i <= 1) {
+        btn.textContent = playerTypes[i] === 'human' ? '👤 Human' : '🤖 CPU';
+        btn.onclick = () => {
+          playerTypes[i] = playerTypes[i] === 'human' ? 'cpu' : 'human';
+          btn.textContent = playerTypes[i] === 'human' ? '👤 Human' : '🤖 CPU';
+          btn.className   = `player-type-btn ${playerTypes[i]}`;
+        };
+      } else {
+        btn.textContent = '🤖 CPU';
+        btn.disabled    = true;
+        playerTypes[i]  = 'cpu';
+      }
+      slot.appendChild(btn);
+      container.appendChild(slot);
+    }
+  }
+
+  function startGame() {
+    // Clear previous game objects
+    for (const ship  of ships)           scene.remove(ship.mesh);
+    for (const cb    of cannonballs)     scene.remove(cb.mesh);
+    for (const s     of splashes)        scene.remove(s.mesh);
+    for (const p     of piratesOverboard){ scene.remove(p.mesh); scene.remove(p.ring); }
+    for (const h     of grapplingHooks)  scene.remove(h.line);
+    for (const f     of muzzleFlashes)   scene.remove(f.mesh);
+
+    ships            = [];
+    cannonballs      = [];
+    splashes         = [];
+    piratesOverboard = [];
+    grapplingHooks   = [];
+    muzzleFlashes    = [];
+    pirateCounter    = 0;
+    gameTime         = 0;
+    shipLostShip     = null;
+    shipLostTimer    = 0;
+    wind             = { angle: 0, strength: 0.6, targetAngle: 0, targetStrength: 0.6, timer: 0 };
+    cameraCenter     = { x: 0, z: 0 };
+    userZoomRadius   = 500;
+    cameraZoom       = 500;
+
+    // Spawn ships
+    for (let i = 0; i < numPlayers; i++) {
+      const isHuman = playerTypes[i] === 'human';
+      const ship    = createShip(i, isHuman);
+      const ang     = (i / numPlayers) * Math.PI * 2;
+      ship.position.set(Math.cos(ang) * 600, Math.sin(ang) * 600);
+      ship.angle = ang + Math.PI;   // face toward center
+      ship.mesh.position.set(ship.position.x, 0, ship.position.y);
+      ship.mesh.rotation.y = ship.angle;
+      ships.push(ship);
+    }
+
+    gamePhase = 'game';
+
+    document.getElementById('menuScreen').style.display     = 'none';
+    document.getElementById('hudTop').style.display         = 'flex';
+    document.getElementById('menuBtn').style.display        = 'flex';
+    document.getElementById('sailIndicator').style.display  = 'block';
+    document.getElementById('shipLostOverlay').style.display= 'none';
+    document.getElementById('pauseOverlay').style.display   = 'none';
+  }
+
+  function togglePause() {
+    if (gamePhase === 'game') {
+      gamePhase = 'paused';
+      document.getElementById('pauseOverlay').style.display = 'flex';
+    } else if (gamePhase === 'paused') {
+      resumeGame();
+    }
+  }
+
+  function resumeGame() {
+    gamePhase = 'game';
+    document.getElementById('pauseOverlay').style.display = 'none';
+  }
+
+  function returnToMenu() {
+    gamePhase = 'menu';
+    document.getElementById('pauseOverlay').style.display    = 'none';
+    document.getElementById('menuScreen').style.display      = 'flex';
+    document.getElementById('hudTop').style.display          = 'none';
+    document.getElementById('menuBtn').style.display         = 'none';
+    document.getElementById('sailIndicator').style.display   = 'none';
+    document.getElementById('cannonHud').style.display       = 'none';
+    document.getElementById('cannonHud2').style.display      = 'none';
+    document.getElementById('windCanvas1').style.display     = 'none';
+    document.getElementById('windCanvas2').style.display     = 'none';
+    document.getElementById('boardingAlert').style.display   = 'none';
+    document.getElementById('shipLostOverlay').style.display = 'none';
+    shipLostShip = null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // EVENT HANDLERS
+  // ══════════════════════════════════════════════════════════════════
+  window.addEventListener('keydown', e => {
+    keys[e.key] = true;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+    if (e.key === 'Escape') togglePause();
+  });
+
+  window.addEventListener('keyup', e => {
+    keys[e.key] = false;
+  });
+
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    userZoomRadius = clamp(userZoomRadius * (1 + e.deltaY * 0.001), 150, 1200);
+  }, { passive: false });
+
+  window.addEventListener('resize', () => {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    aspect = window.innerWidth / window.innerHeight;
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // MAIN GAME LOOP
+  // ══════════════════════════════════════════════════════════════════
+  let lastTime = 0;
+
+  function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+    lastTime = timestamp;
+
+    // Always animate water
+    waterUniforms.time.value += dt;
+
+    if (gamePhase !== 'game') {
+      renderer.render(scene, camera);
+      return;
+    }
+
+    gameTime += dt;
+
+    // ── Core updates ──
+    updateWind(dt);
+
+    for (const ship of ships) updateShipPhysics(ship, dt);
+    prevKeys = { ...keys };   // snapshot AFTER all human controls processed
+
+    for (const ship of ships) checkCannons(ship);
+    for (const ship of ships) checkGrappling(ship);
+
+    updateCannonballs(dt);
+    updateGrappling(dt);
+    updatePiratesOverboard(dt);
+    updateVisualEffects(dt);
+    updateSinking(dt);
+    updateRespawns(dt);
+    updateShipLostOverlay(dt);
+    updateCamera(dt);
+    updateHUD();
+    updateWindOverlays();
+
+    renderer.render(scene, camera);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // INIT
+  // ══════════════════════════════════════════════════════════════════
+  updatePlayerSlots();
+  requestAnimationFrame(gameLoop);
+
+  </script>
+</body>
+</html>

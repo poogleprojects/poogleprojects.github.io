@@ -178,6 +178,50 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
 }
 .ms-label { color: #ffd700; }
 .ms-time  { color: #94a3b8; font-size: 11px; font-weight: 400; }
+
+/* Tile overlay */
+#tile-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tile-cell {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  overflow: hidden;
+}
+.tile-cell img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+.tile-cat-icon {
+  position: absolute;
+  bottom: 2px;
+  right: 3px;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  user-select: none;
+}
+@keyframes tileBounce {
+  0%   { transform: scale(0); }
+  60%  { transform: scale(1.15); }
+  80%  { transform: scale(0.95); }
+  100% { transform: scale(1.0); }
+}
+.tile-cell.bounce {
+  animation: tileBounce 0.4s ease-out forwards;
+}
 </style>
 </head>
 <body>
@@ -206,6 +250,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
   <!-- Canvas -->
   <div id="canvas-wrap">
     <canvas id="city-canvas"></canvas>
+    <div id="tile-overlay"></div>
   </div>
 
   <!-- Bottom bar: Resource bar + Gold shop -->
@@ -335,13 +380,10 @@ let milestones = { pop20:false, allPrestige:false, halfFill:false };
 //  WEBGL
 // ═══════════════════════════════════════════════════════════
 let gl, canvas;
-let cProg, tProg;
+let cProg;
 let cPosLoc, cColLoc, cProjLoc;
-let tPosLoc, tUVLoc, tProjLoc, tSmpLoc;
-let cBuf, tBuf;
+let cBuf;
 let proj = new Float32Array(16);
-let textures = new Array(36).fill(null);
-let texSizes = new Array(36).fill(null); // {w, h} natural image dimensions
 
 const VS_COL = `
   attribute vec2 a_pos;
@@ -352,19 +394,6 @@ const FS_COL = `
   precision mediump float;
   uniform vec4 u_col;
   void main(){ gl_FragColor = u_col; }
-`;
-const VS_TEX = `
-  attribute vec2 a_pos;
-  attribute vec2 a_uv;
-  uniform mat4 u_proj;
-  varying vec2 v_uv;
-  void main(){ gl_Position = u_proj * vec4(a_pos,0.0,1.0); v_uv = a_uv; }
-`;
-const FS_TEX = `
-  precision mediump float;
-  uniform sampler2D u_tex;
-  varying vec2 v_uv;
-  void main(){ gl_FragColor = texture2D(u_tex, v_uv); }
 `;
 
 function mkProg(vs, fs) {
@@ -390,33 +419,8 @@ function initGL() {
   cColLoc = gl.getUniformLocation(cProg, 'u_col');
   cProjLoc = gl.getUniformLocation(cProg, 'u_proj');
 
-  tProg = mkProg(VS_TEX, FS_TEX);
-  tPosLoc = gl.getAttribLocation(tProg, 'a_pos');
-  tUVLoc  = gl.getAttribLocation(tProg, 'a_uv');
-  tProjLoc = gl.getUniformLocation(tProg, 'u_proj');
-  tSmpLoc  = gl.getUniformLocation(tProg, 'u_tex');
-
   cBuf = gl.createBuffer();
-  tBuf = gl.createBuffer();
   return true;
-}
-
-function uploadTexture(idx, img) {
-  const t = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, t);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  try {
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-  } catch(e) {
-    const d = new Uint8Array([80,100,160,255]);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, d);
-  }
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  textures[idx] = t;
-  texSizes[idx] = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
 }
 
 function setProj(w, h) {
@@ -430,6 +434,52 @@ function resizeCv() {
   const h = Math.max(wrap.clientHeight, 1);
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w; canvas.height = h;
+    renderTileOverlay();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TILE OVERLAY (HTML img layer over the WebGL canvas)
+// ═══════════════════════════════════════════════════════════
+function renderTileOverlay() {
+  const overlay = document.getElementById('tile-overlay');
+  if (!overlay) return;
+  overlay.innerHTML = '';
+
+  const W = canvas.clientWidth || canvas.width;
+  const H = canvas.clientHeight || canvas.height;
+  const cw = W / GRID;
+  const ch = H / GRID;
+  const now = performance.now();
+
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = grid[r][c];
+      if (cell.type !== 'building') continue;
+      const b = BUILDINGS[cell.bIdx];
+      const tileRow = (cell.bIdx / 6) | 0;
+      const tileCol = cell.bIdx % 6;
+
+      const div = document.createElement('div');
+      div.className = 'tile-cell' + (cell.placedAt > 0 && (now - cell.placedAt) < 500 ? ' bounce' : '');
+      div.style.left   = (c * cw) + 'px';
+      div.style.top    = (r * ch) + 'px';
+      div.style.width  = cw + 'px';
+      div.style.height = ch + 'px';
+
+      const img = document.createElement('img');
+      img.src = `tiles/tile_${tileRow}x${tileCol}_${cell.bIdx}.png`;
+      img.alt = b.name;
+      img.draggable = false;
+      div.appendChild(img);
+
+      const icon = document.createElement('span');
+      icon.className = 'tile-cat-icon';
+      icon.textContent = b.emoji;
+      div.appendChild(icon);
+
+      overlay.appendChild(div);
+    }
   }
 }
 
@@ -449,56 +499,12 @@ function drawCol(x, y, w, h, r, g, b, a) {
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
-// Draw textured quad — with UNPACK_FLIP_Y_WEBGL=true, v=0 = top of image.
-// UV mapping: (0,0)=top-left, (1,1)=bottom-right, matching Y-down screen space.
-const _tv = new Float32Array(24);
-function drawTex(x, y, w, h, tex) {
-  if (!tex) return;
-  // interleaved: x, y, u, v per vertex
-  _tv[0]=x;    _tv[1]=y;    _tv[2]=0; _tv[3]=0;
-  _tv[4]=x+w;  _tv[5]=y;    _tv[6]=1; _tv[7]=0;
-  _tv[8]=x;    _tv[9]=y+h;  _tv[10]=0; _tv[11]=1;
-  _tv[12]=x+w; _tv[13]=y;   _tv[14]=1; _tv[15]=0;
-  _tv[16]=x+w; _tv[17]=y+h; _tv[18]=1; _tv[19]=1;
-  _tv[20]=x;   _tv[21]=y+h; _tv[22]=0; _tv[23]=1;
-  gl.useProgram(tProg);
-  gl.bindBuffer(gl.ARRAY_BUFFER, tBuf);
-  gl.bufferData(gl.ARRAY_BUFFER, _tv, gl.DYNAMIC_DRAW);
-  gl.enableVertexAttribArray(tPosLoc);
-  gl.vertexAttribPointer(tPosLoc, 2, gl.FLOAT, false, 16, 0);
-  gl.enableVertexAttribArray(tUVLoc);
-  gl.vertexAttribPointer(tUVLoc, 2, gl.FLOAT, false, 16, 8);
-  gl.uniformMatrix4fv(tProjLoc, false, proj);
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.uniform1i(tSmpLoc, 0);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
-}
-
 function drawOutline(x, y, w, h, r, g, b, a, thick) {
   const t = thick || 2;
   drawCol(x,     y,     w,   t, r,g,b,a);
   drawCol(x,     y+h-t, w,   t, r,g,b,a);
   drawCol(x,     y,     t,   h, r,g,b,a);
   drawCol(x+w-t, y,     t,   h, r,g,b,a);
-}
-
-// Bounce scale for newly placed building
-function animScale(placedAt) {
-  const e = performance.now() - placedAt;
-  if (e >= 400 || placedAt === 0) return 1.0;
-  if (e < 200) return (e/200) * 1.2;
-  return 1.2 - ((e-200)/200) * 0.2;
-}
-
-// Fit imgW×imgH inside cellW×cellH centered, preserving aspect ratio
-function fitRect(cx, cy, cellW, cellH, imgW, imgH) {
-  const cellAR = cellW / cellH;
-  const imgAR  = imgW  / imgH;
-  let dw, dh;
-  if (imgAR > cellAR) { dw = cellW; dh = cellW / imgAR; }
-  else                { dh = cellH; dw = cellH * imgAR; }
-  return { x: cx - dw/2, y: cy - dh/2, w: dw, h: dh };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -544,35 +550,7 @@ function render(ts) {
     drawCol(0, i*ch - 0.5, W, 1, 0,0,0, 0.25);
   }
 
-  // 3. Buildings: white background + tile texture (bounce, aspect-ratio-preserving)
-  for (let r = 0; r < GRID; r++) {
-    for (let c = 0; c < GRID; c++) {
-      const cell = grid[r][c];
-      if (cell.type !== 'building') continue;
-      const sc = animScale(cell.placedAt);
-      const cx = (c+0.5)*cw, cy = (r+0.5)*ch;
-      const scaledCW = cw * sc, scaledCH = ch * sc;
-      const tex = textures[cell.bIdx];
-      if (tex) {
-        const sz = texSizes[cell.bIdx];
-        let fit;
-        if (sz && sz.w > 0 && sz.h > 0) {
-          fit = fitRect(cx, cy, scaledCW, scaledCH, sz.w, sz.h);
-        } else {
-          fit = { x: cx - scaledCW/2, y: cy - scaledCH/2, w: scaledCW, h: scaledCH };
-        }
-        drawCol(fit.x, fit.y, fit.w, fit.h, 1, 1, 1, 1.0);
-        drawTex(fit.x, fit.y, fit.w, fit.h, tex);
-      } else {
-        // Fallback: category color if texture not loaded
-        const b = BUILDINGS[cell.bIdx];
-        const rgb = CAT_COLOR_RGB[b.cat] || [0.3,0.3,0.5];
-        drawCol(cx - scaledCW/2, cy - scaledCH/2, scaledCW, scaledCH, rgb[0], rgb[1], rgb[2], 1.0);
-      }
-    }
-  }
-
-  // 4. Hover highlight
+  // 3. Hover highlight
   if (hoverCell) {
     const {col, row} = hoverCell;
     const x = col*cw, y = row*ch;
@@ -590,7 +568,6 @@ function render(ts) {
         const b  = BUILDINGS[bi];
         const affordable = canAfford(b);
         drawCol(x, y, cw, ch, 1,1,1, affordable ? 0.12 : 0.06);
-        if (textures[bi]) drawTex(x, y, cw, ch, textures[bi]);
         drawOutline(x, y, cw, ch, affordable ? 1 : 0.9, affordable ? 1 : 0.3, affordable ? 1 : 0.3, 0.85, 2);
       } else {
         drawCol(x, y, cw, ch, 1,1,1, 0.18);
@@ -658,7 +635,7 @@ function doBuild(col, row) {
   hand.splice(selCard, 1);
   selCard = -1;
   dealCard();
-  updateHUD(); renderHand(); checkMilestones();
+  updateHUD(); renderHand(); renderTileOverlay(); checkMilestones();
 }
 
 function discardCard(i) {
@@ -1104,13 +1081,12 @@ function loadImages() {
 //  INIT
 // ═══════════════════════════════════════════════════════════
 async function init() {
-  const imgs = await loadImages();
+  await loadImages();
 
   document.getElementById('loading-screen').style.display = 'none';
   document.getElementById('game').style.display = 'flex';
 
   if (!initGL()) return;
-  for (let i=0; i<36; i++) uploadTexture(i, imgs[i]);
 
   // Grid init
   for (let r=0; r<GRID; r++) {
@@ -1122,7 +1098,7 @@ async function init() {
 
   initDeck();
   bindEvents();
-  updateHUD(); renderHand(); updateModeHint();
+  updateHUD(); renderHand(); updateModeHint(); renderTileOverlay();
 
   requestAnimationFrame(render);
 }

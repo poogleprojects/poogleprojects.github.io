@@ -189,12 +189,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
     <div id="resource-bar">
       <div class="res-item">
         <div class="prod-label" id="prod-wood"></div>
-        <div class="res-row">🪵 <span class="hud-label">Wood</span><span class="res-value" id="hv-wood">5</span></div>
+        <div class="res-row">🌲 <span class="hud-label">Wood</span><span class="res-value" id="hv-wood">5</span></div>
       </div>
       <div class="res-sep"></div>
       <div class="res-item">
         <div class="prod-label" id="prod-stone"></div>
-        <div class="res-row">🪨 <span class="hud-label">Stone</span><span class="res-value" id="hv-stone">3</span></div>
+        <div class="res-row">🗿 <span class="hud-label">Stone</span><span class="res-value" id="hv-stone">3</span></div>
       </div>
       <div class="res-sep"></div>
       <div class="res-item">
@@ -216,8 +216,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
     </div>
     <div id="gold-shop">
       <span class="shop-label">💰 Shop</span>
-      <button class="shop-btn" id="buy-wood"     title="Spend 1 Gold for 3 Wood">💰1→🪵+3</button>
-      <button class="shop-btn" id="buy-stone"    title="Spend 1 Gold for 3 Stone">💰1→🪨+3</button>
+      <button class="shop-btn" id="buy-wood"     title="Spend 1 Gold for 3 Wood">💰1→🌲+3</button>
+      <button class="shop-btn" id="buy-stone"    title="Spend 1 Gold for 3 Stone">💰1→🗿+3</button>
       <button class="shop-btn" id="buy-hardwood" title="Spend 1 Gold for 2 Hardwood">💰1→🌳+2</button>
       <button class="shop-btn" id="buy-iron"     title="Spend 1 Gold for 2 Iron">💰1→🔩+2</button>
     </div>
@@ -287,7 +287,7 @@ for (const [k, hex] of Object.entries(CAT_COLOR)) {
   ];
 }
 
-const RES_EMOJI  = { wood:'🪵', stone:'🪨', hardwood:'🌳', iron:'🔩', gold:'💰' };
+const RES_EMOJI  = { wood:'🌲', stone:'🗿', hardwood:'🌳', iron:'🔩', gold:'💰' };
 const GRID       = 12;
 const HALF_GRID_CELLS = (GRID * GRID) / 2; // 72 cells = 50%
 const DRIP_SEC   = 10;
@@ -316,6 +316,7 @@ let tPosLoc, tUVLoc, tProjLoc, tSmpLoc;
 let cBuf, tBuf;
 let proj = new Float32Array(16);
 let textures = new Array(36).fill(null);
+let texSizes = new Array(36).fill(null); // {w, h} natural image dimensions
 
 const VS_COL = `
   attribute vec2 a_pos;
@@ -378,8 +379,7 @@ function initGL() {
 function uploadTexture(idx, img) {
   const t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);
-  // Do NOT flip Y: in our Y-down projection, UV (0,0) = top-left = top of image
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   try {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
   } catch(e) {
@@ -391,6 +391,7 @@ function uploadTexture(idx, img) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   textures[idx] = t;
+  texSizes[idx] = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
 }
 
 function setProj(w, h) {
@@ -423,7 +424,7 @@ function drawCol(x, y, w, h, r, g, b, a) {
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
-// Draw textured quad — UV origin (0,0) = top-left of image (no FLIP_Y)
+// Draw textured quad — UV origin (0,0) = top-left of image (FLIP_Y=true)
 const _tv = new Float32Array(24);
 function drawTex(x, y, w, h, tex) {
   if (!tex) return;
@@ -462,6 +463,16 @@ function animScale(placedAt) {
   if (e >= 400 || placedAt === 0) return 1.0;
   if (e < 200) return (e/200) * 1.2;
   return 1.2 - ((e-200)/200) * 0.2;
+}
+
+// Fit imgW×imgH inside cellW×cellH centered, preserving aspect ratio
+function fitRect(cx, cy, cellW, cellH, imgW, imgH) {
+  const cellAR = cellW / cellH;
+  const imgAR  = imgW  / imgH;
+  let dw, dh;
+  if (imgAR > cellAR) { dw = cellW; dh = cellW / imgAR; }
+  else                { dh = cellH; dw = cellH * imgAR; }
+  return { x: cx - dw/2, y: cy - dh/2, w: dw, h: dh };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -507,20 +518,31 @@ function render(ts) {
     drawCol(0, i*ch - 0.5, W, 1, 0,0,0, 0.25);
   }
 
-  // 3. Buildings: draw category-colored background then tile texture (bounce)
+  // 3. Buildings: white background + tile texture (bounce, aspect-ratio-preserving)
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
       const cell = grid[r][c];
       if (cell.type !== 'building') continue;
       const sc = animScale(cell.placedAt);
       const cx = (c+0.5)*cw, cy = (r+0.5)*ch;
-      const hw = cw/2*sc, hh = ch/2*sc;
-      // Draw category-colored background so buildings are always visible
-      const b = BUILDINGS[cell.bIdx];
-      const rgb = CAT_COLOR_RGB[b.cat] || [0.3,0.3,0.5];
-      drawCol(cx-hw, cy-hh, hw*2, hh*2, rgb[0], rgb[1], rgb[2], 0.75);
-      // Draw the tile image texture on top
-      drawTex(cx-hw, cy-hh, hw*2, hh*2, textures[cell.bIdx]);
+      const scaledCW = cw * sc, scaledCH = ch * sc;
+      const tex = textures[cell.bIdx];
+      if (tex) {
+        const sz = texSizes[cell.bIdx];
+        let fit;
+        if (sz && sz.w > 0 && sz.h > 0) {
+          fit = fitRect(cx, cy, scaledCW, scaledCH, sz.w, sz.h);
+        } else {
+          fit = { x: cx - scaledCW/2, y: cy - scaledCH/2, w: scaledCW, h: scaledCH };
+        }
+        drawCol(fit.x, fit.y, fit.w, fit.h, 1, 1, 1, 1.0);
+        drawTex(fit.x, fit.y, fit.w, fit.h, tex);
+      } else {
+        // Fallback: category color if texture not loaded
+        const b = BUILDINGS[cell.bIdx];
+        const rgb = CAT_COLOR_RGB[b.cat] || [0.3,0.3,0.5];
+        drawCol(cx - scaledCW/2, cy - scaledCH/2, scaledCW, scaledCH, rgb[0], rgb[1], rgb[2], 1.0);
+      }
     }
   }
 
@@ -582,7 +604,7 @@ function handleClick(col, row) {
 function doRoad(col, row) {
   if (grid[row][col].type !== 'empty') { flashToast('❌ Cell already occupied!'); return; }
   if (!isAdj(col, row)) { flashToast('❌ Must be adjacent to an existing structure!'); return; }
-  if (res.wood < 1) { flashToast('❌ Need 1 🪵 Wood to place a road!'); return; }
+  if (res.wood < 1) { flashToast('❌ Need 1 🌲 Wood to place a road!'); return; }
   res.wood -= 1;
   grid[row][col] = { type:'road', bIdx:-1, placedAt: performance.now() };
   updateHUD(); renderHand(); checkMilestones();
@@ -793,8 +815,8 @@ function renderHand() {
     const costs = document.createElement('div');
     costs.className = 'card-costs';
     const costDefs = [
-      {k:'wood',     e:'🪵', v:b.wood},
-      {k:'stone',    e:'🪨', v:b.stone},
+      {k:'wood',     e:'🌲', v:b.wood},
+      {k:'stone',    e:'🗿', v:b.stone},
       {k:'hardwood', e:'🌳', v:b.hardwood},
       {k:'iron',     e:'🔩', v:b.iron},
     ];
@@ -863,7 +885,7 @@ function renderHand() {
   roadCosts.className = 'card-costs';
   const roadChip = document.createElement('span');
   roadChip.className = 'cost-chip' + (res.wood < 1 ? ' lacking' : '');
-  roadChip.textContent = '🪵1/tile';
+  roadChip.textContent = '🌲1/tile';
   roadCosts.appendChild(roadChip);
   roadCard.appendChild(roadCosts);
 

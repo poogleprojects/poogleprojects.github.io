@@ -157,6 +157,27 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
   box-shadow: 0 4px 24px rgba(0,0,0,0.6);
   transition: opacity 0.45s; white-space: nowrap;
 }
+
+/* Milestone log – persistent top-right panel */
+#milestone-log {
+  position: fixed; top: 48px; right: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+  z-index: 4000; pointer-events: none; max-width: 280px;
+}
+.ms-entry {
+  background: rgba(10,20,35,0.88); color: #e2e8f0;
+  border: 1px solid #2a5a3a; border-radius: 8px;
+  padding: 7px 12px; font-size: 13px; font-weight: 600;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.55);
+  display: flex; flex-direction: column; gap: 2px;
+  animation: msSlideIn 0.35s ease-out;
+}
+@keyframes msSlideIn {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.ms-label { color: #ffd700; }
+.ms-time  { color: #94a3b8; font-size: 11px; font-weight: 400; }
 </style>
 </head>
 <body>
@@ -179,6 +200,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
     <div class="hud-item" style="margin-left:auto;">⏱️ <span id="hud-time">00:00</span></div>
   </div>
 
+  <!-- Persistent milestone log (top-right) -->
+  <div id="milestone-log"></div>
+
   <!-- Canvas -->
   <div id="canvas-wrap">
     <canvas id="city-canvas"></canvas>
@@ -189,12 +213,12 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
     <div id="resource-bar">
       <div class="res-item">
         <div class="prod-label" id="prod-wood"></div>
-        <div class="res-row">🪵 <span class="hud-label">Wood</span><span class="res-value" id="hv-wood">5</span></div>
+        <div class="res-row">🌲 <span class="hud-label">Wood</span><span class="res-value" id="hv-wood">5</span></div>
       </div>
       <div class="res-sep"></div>
       <div class="res-item">
         <div class="prod-label" id="prod-stone"></div>
-        <div class="res-row">🪨 <span class="hud-label">Stone</span><span class="res-value" id="hv-stone">3</span></div>
+        <div class="res-row">🗿 <span class="hud-label">Stone</span><span class="res-value" id="hv-stone">3</span></div>
       </div>
       <div class="res-sep"></div>
       <div class="res-item">
@@ -216,8 +240,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'Segoe UI
     </div>
     <div id="gold-shop">
       <span class="shop-label">💰 Shop</span>
-      <button class="shop-btn" id="buy-wood"     title="Spend 1 Gold for 3 Wood">💰1→🪵+3</button>
-      <button class="shop-btn" id="buy-stone"    title="Spend 1 Gold for 3 Stone">💰1→🪨+3</button>
+      <button class="shop-btn" id="buy-wood"     title="Spend 1 Gold for 3 Wood">💰1→🌲+3</button>
+      <button class="shop-btn" id="buy-stone"    title="Spend 1 Gold for 3 Stone">💰1→🗿+3</button>
       <button class="shop-btn" id="buy-hardwood" title="Spend 1 Gold for 2 Hardwood">💰1→🌳+2</button>
       <button class="shop-btn" id="buy-iron"     title="Spend 1 Gold for 2 Iron">💰1→🔩+2</button>
     </div>
@@ -287,7 +311,7 @@ for (const [k, hex] of Object.entries(CAT_COLOR)) {
   ];
 }
 
-const RES_EMOJI  = { wood:'🪵', stone:'🪨', hardwood:'🌳', iron:'🔩', gold:'💰' };
+const RES_EMOJI  = { wood:'🌲', stone:'🗿', hardwood:'🌳', iron:'🔩', gold:'💰' };
 const GRID       = 12;
 const HALF_GRID_CELLS = (GRID * GRID) / 2; // 72 cells = 50%
 const DRIP_SEC   = 10;
@@ -299,6 +323,7 @@ const TOWN_CENTER_INDEX = 26;
 let res = { wood:5, stone:3, hardwood:0, iron:0, gold:0 };
 let pop = 0, def = 0;
 let gameStart = 0, lastDripIdx = 0;
+let _gameStartPerf = 0;
 let grid = [];
 let deck = [], hand = [], discard = [];
 let selCard = -1; // index into hand (-1 = none)
@@ -316,6 +341,7 @@ let tPosLoc, tUVLoc, tProjLoc, tSmpLoc;
 let cBuf, tBuf;
 let proj = new Float32Array(16);
 let textures = new Array(36).fill(null);
+let texSizes = new Array(36).fill(null); // {w, h} natural image dimensions
 
 const VS_COL = `
   attribute vec2 a_pos;
@@ -378,8 +404,7 @@ function initGL() {
 function uploadTexture(idx, img) {
   const t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);
-  // Do NOT flip Y: in our Y-down projection, UV (0,0) = top-left = top of image
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
   try {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
   } catch(e) {
@@ -391,6 +416,7 @@ function uploadTexture(idx, img) {
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   textures[idx] = t;
+  texSizes[idx] = { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
 }
 
 function setProj(w, h) {
@@ -423,7 +449,8 @@ function drawCol(x, y, w, h, r, g, b, a) {
   gl.drawArrays(gl.TRIANGLES, 0, 6);
 }
 
-// Draw textured quad — UV origin (0,0) = top-left of image (no FLIP_Y)
+// Draw textured quad — with UNPACK_FLIP_Y_WEBGL=true, v=0 = top of image.
+// UV mapping: (0,0)=top-left, (1,1)=bottom-right, matching Y-down screen space.
 const _tv = new Float32Array(24);
 function drawTex(x, y, w, h, tex) {
   if (!tex) return;
@@ -464,12 +491,22 @@ function animScale(placedAt) {
   return 1.2 - ((e-200)/200) * 0.2;
 }
 
+// Fit imgW×imgH inside cellW×cellH centered, preserving aspect ratio
+function fitRect(cx, cy, cellW, cellH, imgW, imgH) {
+  const cellAR = cellW / cellH;
+  const imgAR  = imgW  / imgH;
+  let dw, dh;
+  if (imgAR > cellAR) { dw = cellW; dh = cellW / imgAR; }
+  else                { dh = cellH; dw = cellH * imgAR; }
+  return { x: cx - dw/2, y: cy - dh/2, w: dw, h: dh };
+}
+
 // ═══════════════════════════════════════════════════════════
 //  RENDER LOOP
 // ═══════════════════════════════════════════════════════════
 function render(ts) {
   resizeCv();
-  if (gameStart === 0) { gameStart = ts; lastDripIdx = 0; }
+  if (gameStart === 0) { gameStart = ts; lastDripIdx = 0; _gameStartPerf = performance.now(); }
 
   const elapsed = (ts - gameStart) / 1000;
   const di = Math.floor(elapsed / DRIP_SEC);
@@ -507,20 +544,31 @@ function render(ts) {
     drawCol(0, i*ch - 0.5, W, 1, 0,0,0, 0.25);
   }
 
-  // 3. Buildings: draw category-colored background then tile texture (bounce)
+  // 3. Buildings: white background + tile texture (bounce, aspect-ratio-preserving)
   for (let r = 0; r < GRID; r++) {
     for (let c = 0; c < GRID; c++) {
       const cell = grid[r][c];
       if (cell.type !== 'building') continue;
       const sc = animScale(cell.placedAt);
       const cx = (c+0.5)*cw, cy = (r+0.5)*ch;
-      const hw = cw/2*sc, hh = ch/2*sc;
-      // Draw category-colored background so buildings are always visible
-      const b = BUILDINGS[cell.bIdx];
-      const rgb = CAT_COLOR_RGB[b.cat] || [0.3,0.3,0.5];
-      drawCol(cx-hw, cy-hh, hw*2, hh*2, rgb[0], rgb[1], rgb[2], 0.75);
-      // Draw the tile image texture on top
-      drawTex(cx-hw, cy-hh, hw*2, hh*2, textures[cell.bIdx]);
+      const scaledCW = cw * sc, scaledCH = ch * sc;
+      const tex = textures[cell.bIdx];
+      if (tex) {
+        const sz = texSizes[cell.bIdx];
+        let fit;
+        if (sz && sz.w > 0 && sz.h > 0) {
+          fit = fitRect(cx, cy, scaledCW, scaledCH, sz.w, sz.h);
+        } else {
+          fit = { x: cx - scaledCW/2, y: cy - scaledCH/2, w: scaledCW, h: scaledCH };
+        }
+        drawCol(fit.x, fit.y, fit.w, fit.h, 1, 1, 1, 1.0);
+        drawTex(fit.x, fit.y, fit.w, fit.h, tex);
+      } else {
+        // Fallback: category color if texture not loaded
+        const b = BUILDINGS[cell.bIdx];
+        const rgb = CAT_COLOR_RGB[b.cat] || [0.3,0.3,0.5];
+        drawCol(cx - scaledCW/2, cy - scaledCH/2, scaledCW, scaledCH, rgb[0], rgb[1], rgb[2], 1.0);
+      }
     }
   }
 
@@ -582,7 +630,7 @@ function handleClick(col, row) {
 function doRoad(col, row) {
   if (grid[row][col].type !== 'empty') { flashToast('❌ Cell already occupied!'); return; }
   if (!isAdj(col, row)) { flashToast('❌ Must be adjacent to an existing structure!'); return; }
-  if (res.wood < 1) { flashToast('❌ Need 1 🪵 Wood to place a road!'); return; }
+  if (res.wood < 1) { flashToast('❌ Need 1 🌲 Wood to place a road!'); return; }
   res.wood -= 1;
   grid[row][col] = { type:'road', bIdx:-1, placedAt: performance.now() };
   updateHUD(); renderHand(); checkMilestones();
@@ -793,8 +841,8 @@ function renderHand() {
     const costs = document.createElement('div');
     costs.className = 'card-costs';
     const costDefs = [
-      {k:'wood',     e:'🪵', v:b.wood},
-      {k:'stone',    e:'🪨', v:b.stone},
+      {k:'wood',     e:'🌲', v:b.wood},
+      {k:'stone',    e:'🗿', v:b.stone},
       {k:'hardwood', e:'🌳', v:b.hardwood},
       {k:'iron',     e:'🔩', v:b.iron},
     ];
@@ -863,7 +911,7 @@ function renderHand() {
   roadCosts.className = 'card-costs';
   const roadChip = document.createElement('span');
   roadChip.className = 'cost-chip' + (res.wood < 1 ? ' lacking' : '');
-  roadChip.textContent = '🪵1/tile';
+  roadChip.textContent = '🌲1/tile';
   roadCosts.appendChild(roadChip);
   roadCard.appendChild(roadCosts);
 
@@ -903,6 +951,7 @@ function checkMilestones() {
   if (!milestones.pop20 && pop >= 20) {
     milestones.pop20 = true;
     flashToast('🏆 Growing City! Population reached 20!');
+    addMilestoneLog('🏆 Growing City!', 'Population reached 20');
   }
   if (!milestones.allPrestige) {
     const ps = new Set();
@@ -913,6 +962,7 @@ function checkMilestones() {
     if (ps.size >= 4) {
       milestones.allPrestige = true;
       flashToast('💎 Legendary City! All Prestige buildings constructed!');
+      addMilestoneLog('💎 Legendary City!', 'All Prestige buildings built');
     }
   }
   if (!milestones.halfFill) {
@@ -921,8 +971,22 @@ function checkMilestones() {
     if (filled >= HALF_GRID_CELLS) {
       milestones.halfFill = true;
       flashToast('🗺️ Bustling Metropolis! 50% of the city is built!');
+      addMilestoneLog('🗺️ Bustling Metropolis!', '50% of the city filled');
     }
   }
+}
+
+function addMilestoneLog(label, detail) {
+  const elapsed = (performance.now() - _gameStartPerf) / 1000;
+  const m = String(Math.floor(elapsed / 60)).padStart(2, '0');
+  const s = String(Math.floor(elapsed % 60)).padStart(2, '0');
+  const entry = document.createElement('div');
+  entry.className = 'ms-entry';
+  entry.innerHTML =
+    '<span class="ms-label">' + label + '</span>' +
+    '<span>' + detail + '</span>' +
+    '<span class="ms-time">⏱️ ' + m + ':' + s + '</span>';
+  document.getElementById('milestone-log').appendChild(entry);
 }
 
 let _toastTimer = null;

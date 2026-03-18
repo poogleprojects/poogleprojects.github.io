@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ball & Chain Smasher</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }
+  canvas {
+    border: 2px solid #333;
+    cursor: crosshair;
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="1280" height="720"></canvas>
+<script src=https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js></script>
+<script>
+// ============================================================
+// BALL & CHAIN SMASHER v2 — Single File
+// Features: charge throw, rubber-band bounce, double jump,
+//           chain grows per level, throw bug fix
+// ============================================================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const { Engine, Bodies, Body, Composite, Constraint, Events, Vector } = Matter;
+ 
+// ======================== CONSTANTS ==========================
+const CW = 1280, CH = 720, GH = 40, GY = CH - GH / 2;
+const PW = 40, PH = 56, PSPEED = 4;
+const JUMP1 = -12, JUMP2 = -10, MAX_JUMPS = 2;
+const BALL_R = 18, BASE_LINKS = 10, LINK_R = 4, LINK_GAP = 12;
+const LINKS_PER_LVL = 2;
+const THROW_MIN = 0.5, THROW_MAX = 1.5, CHARGE_MAX = 1500;
+const BASE_MAX_LEN = 350, LEN_PER_LVL = 50;
+const REST_HELD = 0.4, REST_THROWN = 0.85, SETTLE_SPD = 1.5, MAX_FLY = 5000;
+const BSIZE = 40, BRK_WOOD = 4, BRK_STONE = 10;
+const C_GND = 0x0001, C_PLR = 0x0002, C_BALL = 0x0004, C_CHN = 0x0008, C_BOX = 0x0010;
+ 
+// ======================== STATE ==============================
+let gameState = 'title', curLvl = 0, score = 0, totalScore = 0;
+let lvlTime = 0, lvlLimit = 60, lastTS = 0;
+const keys = {};
+let mouseX = 0, mouseY = 0, mouseDown = false, mouseReleased = false;
+let charging = false, chargeStart = 0, chargePower = 0;
+let engine, world, ground, playerBody, ballBody;
+let chainLinks = [], chainCons = [], retractCon = null;
+let boxes = [], platforms = [], fragments = [], particles = [], textParts = [];
+let jumpsLeft = 2, jumpHeld = false;
+let ballState = 'held', flyTimer = 0;
+let curLinks = BASE_LINKS, curMaxLen = BASE_MAX_LEN;
+let shakeAmt = 0, shakeDur = 0;
+let lvlMsg = '', lvlMsgTimer = 0;
+let chainRxn = 0, chainRxnTimer = 0;
+ 
+// ======================== LEVELS =============================
+const LEVELS = [
+  { name:"Tutorial — First Smash", ps:{x:200,y:500}, time:60, plats:[],
+    boxes:[
+      {t:'wood',x:850,y:CH-GH-BSIZE/2},{t:'wood',x:890,y:CH-GH-BSIZE/2},
+      {t:'wood',x:870,y:CH-GH-BSIZE*1.5}
+    ]},
+  { name:"The Tower", ps:{x:150,y:500}, time:60, plats:[],
+    boxes:[
+      {t:'wood',x:900,y:CH-GH-BSIZE/2},{t:'wood',x:940,y:CH-GH-BSIZE/2},
+      {t:'wood',x:920,y:CH-GH-BSIZE*1.5},{t:'stone',x:920,y:CH-GH-BSIZE*2.5},
+      {t:'wood',x:920,y:CH-GH-BSIZE*3.5},{t:'wood',x:920,y:CH-GH-BSIZE*4.5}
+    ]},
+  { name:"The Fortress", ps:{x:150,y:500}, time:75, plats:[],
+    boxes:[
+      {t:'stone',x:750,y:CH-GH-BSIZE/2},{t:'wood',x:790,y:CH-GH-BSIZE/2},
+      {t:'wood',x:830,y:CH-GH-BSIZE/2},{t:'stone',x:870,y:CH-GH-BSIZE/2},
+      {t:'stone',x:770,y:CH-GH-BSIZE*1.5},{t:'wood',x:810,y:CH-GH-BSIZE*1.5},
+      {t:'stone',x:850,y:CH-GH-BSIZE*1.5},{t:'wood',x:790,y:CH-GH-BSIZE*2.5},
+      {t:'wood',x:830,y:CH-GH-BSIZE*2.5}
+    ]},
+  { name:"Elevated Targets", ps:{x:150,y:500}, time:75,
+    plats:[{x:700,y:480,w:160,h:16},{x:1000,y:380,w:160,h:16}],
+    boxes:[
+      {t:'wood',x:500,y:CH-GH-BSIZE/2},{t:'wood',x:540,y:CH-GH-BSIZE/2},
+      {t:'wood',x:520,y:CH-GH-BSIZE*1.5},{t:'stone',x:680,y:480-8-BSIZE/2},
+      {t:'wood',x:720,y:480-8-BSIZE/2},{t:'wood',x:980,y:380-8-BSIZE/2},
+      {t:'wood',x:1020,y:380-8-BSIZE/2},{t:'stone',x:1000,y:380-8-BSIZE*1.5}
+    ]},
+  { name:"The Gauntlet", ps:{x:120,y:500}, time:90,
+    plats:[{x:500,y:520,w:100,h:16}],
+    boxes:[
+      {t:'wood',x:600,y:CH-GH-BSIZE/2},{t:'wood',x:640,y:CH-GH-BSIZE/2},
+      {t:'wood',x:680,y:CH-GH-BSIZE/2},{t:'stone',x:620,y:CH-GH-BSIZE*1.5},
+      {t:'stone',x:660,y:CH-GH-BSIZE*1.5},{t:'wood',x:640,y:CH-GH-BSIZE*2.5},
+      {t:'stone',x:900,y:CH-GH-BSIZE/2},{t:'stone',x:940,y:CH-GH-BSIZE/2},
+      {t:'wood',x:920,y:CH-GH-BSIZE*1.5},{t:'wood',x:920,y:CH-GH-BSIZE*2.5},
+      {t:'wood',x:920,y:CH-GH-BSIZE*3.5},{t:'wood',x:480,y:520-8-BSIZE/2},
+      {t:'wood',x:520,y:520-8-BSIZE/2}
+    ]}
+];
+ 
+// ======================== INPUT ==============================
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (gameState==='title'&&e.code==='Space') startGame();
+  if (gameState==='levelComplete'&&e.code==='Space') nextLevel();
+  if (gameState==='gameOver'&&e.code==='Space'){gameState='title';totalScore=0;curLvl=0;}
+  if (gameState==='playing'&&e.code==='KeyR') forceRetract();
+});
+document.addEventListener('keyup', e => { keys[e.code]=false; });
+canvas.addEventListener('mousemove', e => {
+  const r=canvas.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*(CW/r.width);
+  mouseY=(e.clientY-r.top)*(CH/r.height);
+});
+canvas.addEventListener('mousedown', e => {
+  mouseDown=true; mouseReleased=false;
+  if(gameState==='title'){startGame();return;}
+  if(gameState==='levelComplete'){nextLevel();return;}
+  if(gameState==='gameOver'){gameState='title';totalScore=0;curLvl=0;return;}
+ 
+  // Always allow charging — no state check
+  if(gameState==='playing'){
+    charging=true;chargeStart=performance.now();chargePower=0;
+  }
+});
+ 
+canvas.addEventListener('mouseup', () => {
+  mouseDown=false;
+  // Always allow release
+  if(charging&&gameState==='playing') mouseReleased=true;
+  charging=false;
+});
+ 
+// ======================== PHYSICS ============================
+function initPhysics(){
+  engine=Engine.create({gravity:{x:0,y:1.8}});
+  world=engine.world;
+  engine.positionIterations=6; engine.velocityIterations=4;
+  ground=Bodies.rectangle(CW/2,GY,CW+200,GH,{
+    isStatic:true,friction:0.6,label:'ground',
+    collisionFilter:{category:C_GND,mask:C_PLR|C_BALL|C_CHN|C_BOX}
+  });
+  const wL=Bodies.rectangle(-20,CH/2,40,CH*2,{isStatic:true,label:'wall',
+    collisionFilter:{category:C_GND,mask:C_PLR|C_BALL|C_BOX}});
+  const wR=Bodies.rectangle(CW+20,CH/2,40,CH*2,{isStatic:true,label:'wall',
+    collisionFilter:{category:C_GND,mask:C_PLR|C_BALL|C_BOX}});
+  Composite.add(world,[ground,wL,wR]);
+  Events.on(engine,'collisionStart',onColStart);
+  Events.on(engine,'collisionActive',onColActive);
+}
+ 
+function onColStart(ev){
+  for(const pair of ev.pairs){
+    const a=pair.bodyA, b=pair.bodyB;
+    if((a.label==='player'&&(b.label==='ground'||b.label==='platform'))||
+       (b.label==='player'&&(a.label==='ground'||a.label==='platform')))
+      jumpsLeft=MAX_JUMPS;
+ 
+    let ball=null,box=null;
+    if(a.label==='ball'&&b.boxData){ball=a;box=b;}
+    if(b.label==='ball'&&a.boxData){ball=b;box=a;}
+    if(ball&&box&&!box.boxData.destroyed){
+      const spd=Vector.magnitude(Vector.sub(ball.velocity,box.velocity));
+      const imp=spd*ball.mass;
+      if(imp>box.boxData.breakThreshold) destroyBox(box);
+      else{spawnParts(box.position.x,box.position.y,3,box.boxData.color,0.5);triggerShake(2,100);}
+    }
+ 
+    if(a.boxData&&b.boxData){
+      const spd=Vector.magnitude(Vector.sub(a.velocity,b.velocity));
+      if(spd>8){
+        if(!a.boxData.destroyed&&a.boxData.type!=='metal'){
+          if(spd*b.mass>a.boxData.breakThreshold*1.5) destroyBox(a);}
+        if(!b.boxData.destroyed&&b.boxData.type!=='metal'){
+          if(spd*a.mass>b.boxData.breakThreshold*1.5) destroyBox(b);}
+      }
+    }
+ 
+    if((a.label==='ball'&&(b.label==='ground'||b.label==='wall'))||
+       (b.label==='ball'&&(a.label==='ground'||a.label==='wall'))){
+      if(ballState==='thrown'||ballState==='bouncing'){
+        const bp=a.label==='ball'?a.position:b.position;
+        spawnParts(bp.x,bp.y,5,'#ffaa44',0.8);triggerShake(2,80);
+      }
+    }
+  }
+}
+function onColActive(ev){
+  for(const pair of ev.pairs){
+    const a=pair.bodyA,b=pair.bodyB;
+    if((a.label==='player'&&(b.label==='ground'||b.label==='platform'))||
+       (b.label==='player'&&(a.label==='ground'||a.label==='platform')))
+      jumpsLeft=MAX_JUMPS;
+  }
+}
+ 
+// ======================== PLAYER =============================
+function createPlayer(x,y){
+  playerBody=Bodies.rectangle(x,y,PW,PH,{
+    mass:5,friction:0.3,frictionAir:0.02,restitution:0.1,
+    inertia:Infinity,inverseInertia:0,label:'player',
+    collisionFilter:{category:C_PLR,mask:C_GND|C_BOX}
+  });
+  Composite.add(world,playerBody);
+}
+function updatePlayer(){
+  const v=playerBody.velocity;
+  let mx=0;
+  if(keys['KeyA']||keys['ArrowLeft']) mx=-PSPEED;
+  if(keys['KeyD']||keys['ArrowRight']) mx=PSPEED;
+  Body.setVelocity(playerBody,{x:mx,y:v.y});
+  if(keys['KeyW']||keys['ArrowUp']||keys['Space']){
+    if(jumpsLeft>0&&!jumpHeld){
+      const dbl=jumpsLeft<MAX_JUMPS;
+      Body.setVelocity(playerBody,{x:v.x,y:dbl?JUMP2:JUMP1});
+      jumpsLeft--; jumpHeld=true;
+      if(dbl) spawnParts(playerBody.position.x,playerBody.position.y+PH/2,8,'#aaddff',0.6);
+    }
+  } else jumpHeld=false;
+  const px=playerBody.position.x;
+  if(px<PW/2) Body.setPosition(playerBody,{x:PW/2,y:playerBody.position.y});
+  if(px>CW-PW/2) Body.setPosition(playerBody,{x:CW-PW/2,y:playerBody.position.y});
+  if(playerBody.position.y>CH+100){
+    Body.setPosition(playerBody,{x:200,y:300});
+    Body.setVelocity(playerBody,{x:0,y:0});jumpsLeft=MAX_JUMPS;
+  }
+}
+ 
+// ======================== BALL & CHAIN =======================
+function createBallChain(){
+  const hx=playerBody.position.x+15, hy=playerBody.position.y-10;
+  chainLinks=[]; chainCons=[];
+  let prev=playerBody, pp={x:15,y:-10};
+  for(let i=0;i<curLinks;i++){
+    const lk=Bodies.circle(hx+(i+1)*LINK_GAP,hy,LINK_R,{
+      mass:0.2,friction:0.1,frictionAir:0.02,restitution:0,label:'chain',
+      collisionFilter:{category:C_CHN,mask:C_GND}
+    });
+    chainLinks.push(lk); Composite.add(world,lk);
+    const c=Constraint.create({bodyA:prev,pointA:i===0?pp:{x:0,y:0},
+      bodyB:lk,pointB:{x:0,y:0},length:LINK_GAP,stiffness:0.9,damping:0.1});
+    chainCons.push(c); Composite.add(world,c);
+    prev=lk;
+  }
+  ballBody=Bodies.circle(hx+(curLinks+1)*LINK_GAP,hy,BALL_R,{
+    mass:8,friction:0.2,frictionAir:0.005,restitution:REST_HELD,label:'ball',
+    collisionFilter:{category:C_BALL,mask:C_GND|C_BOX}
+  });
+  Composite.add(world,ballBody);
+  const bc=Constraint.create({bodyA:prev,pointA:{x:0,y:0},bodyB:ballBody,
+    pointB:{x:0,y:0},length:LINK_GAP,stiffness:0.9,damping:0.1});
+  chainCons.push(bc); Composite.add(world,bc);
+  ballState='held';
+}
+ 
+function throwBall(power){
+  // No state check — always allow throwing
+  const hp={x:playerBody.position.x+15,y:playerBody.position.y-10};
+  const dir=Vector.normalise(Vector.sub({x:mouseX,y:mouseY},hp));
+  const fm=THROW_MIN+(THROW_MAX-THROW_MIN)*power;
+  ballBody.restitution=REST_THROWN; ballBody.frictionAir=0.002;
+  Body.applyForce(ballBody,ballBody.position,Vector.mult(dir,fm));
+  spawnParts(hp.x,hp.y,6,'#ffcc44',0.5+power*0.5);
+ 
+  // Immediately ready to throw again
+  ballState='held';
+}
+function forceRetract(){if(ballState!=='held') startRetract();}
+function startRetract(){
+  if(ballState==='retracting') return;
+  ballState='retracting';
+  ballBody.restitution=REST_HELD; ballBody.frictionAir=0.01;
+  if(retractCon){Composite.remove(world,retractCon);}
+  retractCon=Constraint.create({bodyA:playerBody,pointA:{x:15,y:-10},
+    bodyB:ballBody,pointB:{x:0,y:0},length:30,stiffness:0.004,damping:0.05});
+  Composite.add(world,retractCon);
+}
+function updateBallChain(dt){
+  // Charge power while holding
+  if(charging&&ballState==='held')
+    chargePower=Math.min(1,(performance.now()-chargeStart)/CHARGE_MAX);
+ 
+  // Release = throw
+  if(mouseReleased&&ballState==='held'){
+    throwBall(Math.max(0.1,chargePower));
+    chargePower=0;charging=false;mouseReleased=false;
+  }
+ 
+  // That's it — no thrown/bouncing/retracting states needed
+  mouseReleased=false;
+}
+ 
+// ======================== BOXES ==============================
+function createBox(type,x,y){
+  const cfg={
+    wood:{mass:1,fr:0.4,re:0.2,brk:BRK_WOOD,col:'#c4883c',pts:100},
+    stone:{mass:4,fr:0.6,re:0.1,brk:BRK_STONE,col:'#888899',pts:250},
+    metal:{mass:100,fr:0.8,re:0.05,col:'#556677',pts:0,brk:Infinity}
+  }[type];
+  const b=Bodies.rectangle(x,y,BSIZE,BSIZE,{
+    mass:cfg.mass,friction:cfg.fr,restitution:cfg.re,label:'box',
+    collisionFilter:{category:C_BOX,mask:C_GND|C_BALL|C_BOX|C_PLR}
+  });
+  b.boxData={type,color:cfg.col,breakThreshold:cfg.brk,points:cfg.pts,destroyed:false};
+  Composite.add(world,b); boxes.push(b);
+}
+function destroyBox(box){
+  if(box.boxData.destroyed) return;
+  box.boxData.destroyed=true; score+=box.boxData.points;
+  const cx=box.position.x,cy=box.position.y;
+  for(let i=0;i<6;i++){
+    const fw=6+Math.random()*10,fh=6+Math.random()*10;
+    const fr=Bodies.rectangle(cx+(Math.random()-0.5)*BSIZE,cy+(Math.random()-0.5)*BSIZE,fw,fh,{
+      mass:0.1,friction:0.3,restitution:0.3,frictionAir:0.02,label:'fragment',
+      collisionFilter:{category:C_BOX,mask:C_GND}
+    });
+    fr.fragData={color:box.boxData.color,life:2000,maxLife:2000,w:fw,h:fh};
+    const a=Math.random()*Math.PI*2,f=0.005+Math.random()*0.01;
+    Body.applyForce(fr,fr.position,{x:Math.cos(a)*f,y:Math.sin(a)*f-0.005});
+    Composite.add(world,fr); fragments.push(fr);
+  }
+  spawnParts(cx,cy,12,box.boxData.color,1); triggerShake(4,200);
+  Composite.remove(world,box); boxes=boxes.filter(b=>b!==box);
+  chainRxn++; chainRxnTimer=500;
+  if(chainRxn>=3){score+=500;spawnText(CW/2,200,"CHAIN REACTION! +500",'#ffdd00');}
+}
+ 
+// ======================== PARTICLES ==========================
+function spawnParts(x,y,n,col,int){
+  for(let i=0;i<n;i++){
+    const a=Math.random()*Math.PI*2,s=(1+Math.random()*3)*int;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-2*int,
+      life:600+Math.random()*400,maxLife:1000,size:2+Math.random()*4,color:col});
+  }
+}
+function spawnText(x,y,text,color){textParts.push({x,y,text,color,life:2000,maxLife:2000,vy:-1});}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life-=dt;
+    if(p.life<=0)particles.splice(i,1);
+  }
+  for(let i=fragments.length-1;i>=0;i--){
+    fragments[i].fragData.life-=dt;
+    if(fragments[i].fragData.life<=0){Composite.remove(world,fragments[i]);fragments.splice(i,1);}
+  }
+  for(let i=textParts.length-1;i>=0;i--){
+    textParts[i].y+=textParts[i].vy;textParts[i].life-=dt;
+    if(textParts[i].life<=0)textParts.splice(i,1);
+  }
+  if(chainRxnTimer>0){chainRxnTimer-=dt;if(chainRxnTimer<=0)chainRxn=0;}
+  if(lvlMsgTimer>0) lvlMsgTimer-=dt;
+}
+function triggerShake(a,d){shakeAmt=Math.max(shakeAmt,a);shakeDur=Math.max(shakeDur,d);}
+function updateShake(dt){if(shakeDur>0){shakeDur-=dt;if(shakeDur<=0)shakeAmt=0;}}
+ 
+// ======================== LEVELS =============================
+function loadLevel(idx){
+  if(engine){Composite.clear(world);Engine.clear(engine);}
+  initPhysics();
+  const L=LEVELS[idx];
+  score=0;lvlTime=0;lvlLimit=L.time;
+  boxes=[];fragments=[];particles=[];textParts=[];
+  chainRxn=0;chainRxnTimer=0;shakeAmt=0;shakeDur=0;
+  ballState='held';retractCon=null;charging=false;chargePower=0;
+  jumpsLeft=MAX_JUMPS;jumpHeld=false;
+  curLinks=BASE_LINKS+idx*LINKS_PER_LVL;
+  curMaxLen=BASE_MAX_LEN+idx*LEN_PER_LVL;
+  createPlayer(L.ps.x,L.ps.y);
+  createBallChain();
+  platforms=[];
+  for(const p of L.plats){
+    const pl=Bodies.rectangle(p.x,p.y,p.w,p.h,{
+      isStatic:true,friction:0.6,label:'platform',
+      collisionFilter:{category:C_GND,mask:C_PLR|C_BALL|C_CHN|C_BOX}
+    });
+    pl.platData={w:p.w,h:p.h}; Composite.add(world,pl); platforms.push(pl);
+  }
+  for(const b of L.boxes) createBox(b.t,b.x,b.y);
+  if(idx>0){lvlMsg=`⛓ Chain Upgraded! (${curLinks} links)`;lvlMsgTimer=2500;}
+  else{lvlMsg='Hold click to charge, release to throw!';lvlMsgTimer=3000;}
+}
+function startGame(){curLvl=0;totalScore=0;loadLevel(0);gameState='playing';}
+function nextLevel(){
+  totalScore+=score;curLvl++;
+  if(curLvl>=LEVELS.length) gameState='gameOver';
+  else{loadLevel(curLvl);gameState='playing';}
+}
+function checkWin(){
+  if(boxes.filter(b=>b.boxData.type!=='metal'&&!b.boxData.destroyed).length===0){
+    totalScore+=score;
+    const tb=Math.max(0,Math.floor(lvlLimit-lvlTime))*10;
+    score+=tb;totalScore+=tb;gameState='levelComplete';
+  }
+}
+ 
+// ======================== DRAWING ============================
+function drawBg(){
+  const g=ctx.createLinearGradient(0,0,0,CH);
+  g.addColorStop(0,'#1a1a3e');g.addColorStop(0.5,'#2a2a5e');g.addColorStop(1,'#3a2a4e');
+  ctx.fillStyle=g;ctx.fillRect(0,0,CW,CH);
+  ctx.fillStyle='rgba(255,255,255,0.3)';
+  for(let i=0;i<60;i++){
+    const sx=(42*(i+1)*7)%CW,sy=(42*(i+1)*13)%(CH*0.6);
+    ctx.fillRect(sx,sy,(i%3)+1,(i%3)+1);
+  }
+}
+function drawGround(){
+  ctx.fillStyle='#3a5a3a';ctx.fillRect(0,GY-GH/2,CW,GH+100);
+  ctx.fillStyle='#4a8a4a';ctx.fillRect(0,GY-GH/2,CW,4);
+}
+function drawPlats(){
+  for(const p of platforms){
+    const d=p.platData;
+    ctx.fillStyle='#5a6a5a';ctx.fillRect(p.position.x-d.w/2,p.position.y-d.h/2,d.w,d.h);
+    ctx.fillStyle='#7a9a7a';ctx.fillRect(p.position.x-d.w/2,p.position.y-d.h/2,d.w,3);
+  }
+}
+function drawPlayer(){
+  const px=playerBody.position.x,py=playerBody.position.y;
+  ctx.fillStyle='#4488cc';ctx.fillRect(px-PW/2,py-PH/2,PW,PH);
+  ctx.strokeStyle='#2266aa';ctx.lineWidth=2;ctx.strokeRect(px-PW/2,py-PH/2,PW,PH);
+  const ed=mouseX>px?1:-1;
+  ctx.fillStyle='white';ctx.beginPath();
+  ctx.arc(px-6+ed*2,py-14,6,0,Math.PI*2);ctx.arc(px+8+ed*2,py-14,6,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#222';ctx.beginPath();
+  ctx.arc(px-5+ed*4,py-14,3,0,Math.PI*2);ctx.arc(px+9+ed*4,py-14,3,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='#3377bb';ctx.lineWidth=4;ctx.beginPath();
+  ctx.moveTo(px+10,py-5);ctx.lineTo(px+15,py-10);ctx.stroke();
+  for(let i=0;i<jumpsLeft;i++){
+    ctx.fillStyle='#aaddff';ctx.beginPath();
+    ctx.arc(px-8+i*12,py+PH/2+8,3,0,Math.PI*2);ctx.fill();
+  }
+}
+function drawBall(){
+  const bx=ballBody.position.x,by=ballBody.position.y;
+  ctx.fillStyle='rgba(0,0,0,0.3)';ctx.beginPath();ctx.arc(bx+3,by+3,BALL_R,0,Math.PI*2);ctx.fill();
+  if(ballState==='thrown'||ballState==='bouncing'){ctx.shadowColor='#ff8844';ctx.shadowBlur=15;}
+  const g=ctx.createRadialGradient(bx-5,by-5,2,bx,by,BALL_R);
+  g.addColorStop(0,'#888');g.addColorStop(0.5,'#555');g.addColorStop(1,'#333');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(bx,by,BALL_R,0,Math.PI*2);ctx.fill();
+  ctx.shadowColor='transparent';ctx.shadowBlur=0;
+  ctx.strokeStyle='#222';ctx.lineWidth=2;ctx.beginPath();ctx.arc(bx,by,BALL_R,0,Math.PI*2);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.3)';ctx.beginPath();ctx.arc(bx-5,by-6,5,0,Math.PI*2);ctx.fill();
+}
+function drawChain(){
+  const hx=playerBody.position.x+15,hy=playerBody.position.y-10;
+  ctx.strokeStyle='#666';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(hx,hy);
+  for(const l of chainLinks) ctx.lineTo(l.position.x,l.position.y);
+  ctx.lineTo(ballBody.position.x,ballBody.position.y);ctx.stroke();
+  ctx.fillStyle='#777';
+  for(const l of chainLinks){ctx.beginPath();ctx.arc(l.position.x,l.position.y,LINK_R,0,Math.PI*2);ctx.fill();}
+}
+function drawBoxes(){
+  for(const box of boxes){
+    if(box.boxData.destroyed) continue;
+    ctx.save();ctx.translate(box.position.x,box.position.y);ctx.rotate(box.angle);
+    ctx.fillStyle='rgba(0,0,0,0.2)';ctx.fillRect(-BSIZE/2+3,-BSIZE/2+3,BSIZE,BSIZE);
+    ctx.fillStyle=box.boxData.color;ctx.fillRect(-BSIZE/2,-BSIZE/2,BSIZE,BSIZE);
+    ctx.strokeStyle='rgba(0,0,0,0.2)';ctx.lineWidth=1;
+    if(box.boxData.type==='wood'){
+      for(let i=-15;i<20;i+=8){ctx.beginPath();ctx.moveTo(-BSIZE/2,i);ctx.lineTo(BSIZE/2,i);ctx.stroke();}
+    }else if(box.boxData.type==='stone'){
+      ctx.beginPath();ctx.moveTo(-10,-20);ctx.lineTo(5,0);ctx.lineTo(-5,15);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(10,-15);ctx.lineTo(15,10);ctx.stroke();
+    }else if(box.boxData.type==='metal'){
+      ctx.fillStyle='rgba(200,200,200,0.4)';ctx.beginPath();
+      ctx.arc(-14,-14,3,0,Math.PI*2);ctx.arc(14,-14,3,0,Math.PI*2);
+      ctx.arc(-14,14,3,0,Math.PI*2);ctx.arc(14,14,3,0,Math.PI*2);ctx.fill();
+    }
+    ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=2;
+    ctx.strokeRect(-BSIZE/2,-BSIZE/2,BSIZE,BSIZE);ctx.restore();
+  }
+}
+function drawFragments(){
+  for(const f of fragments){
+    const a=Math.max(0,f.fragData.life/f.fragData.maxLife);
+    ctx.save();ctx.translate(f.position.x,f.position.y);ctx.rotate(f.angle);
+    ctx.globalAlpha=a;ctx.fillStyle=f.fragData.color;
+    ctx.fillRect(-f.fragData.w/2,-f.fragData.h/2,f.fragData.w,f.fragData.h);
+    ctx.globalAlpha=1;ctx.restore();
+  }
+}
+function drawParticles(){
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,p.life/p.maxLife);ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+function drawTextParts(){
+  for(const t of textParts){
+    ctx.globalAlpha=Math.max(0,t.life/t.maxLife);
+    ctx.font='bold 28px "Segoe UI",Arial,sans-serif';ctx.textAlign='center';
+    ctx.strokeStyle='#000';ctx.lineWidth=3;ctx.strokeText(t.text,t.x,t.y);
+    ctx.fillStyle=t.color;ctx.fillText(t.text,t.x,t.y);
+  }
+  ctx.globalAlpha=1;
+}
+function drawAim(){
+  if(ballState!=='held') return;
+  const hx=playerBody.position.x+15,hy=playerBody.position.y-10;
+  const dir=Vector.normalise(Vector.sub({x:mouseX,y:mouseY},{x:hx,y:hy}));
+  const len=60+(charging?chargePower*120:0);
+  ctx.strokeStyle=charging
+    ?`rgba(255,${Math.floor(255-chargePower*200)},${Math.floor(100-chargePower*100)},0.6)`
+    :'rgba(255,255,255,0.3)';
+  ctx.lineWidth=charging?2+chargePower*2:2;
+  ctx.setLineDash([6,6]);ctx.beginPath();
+  ctx.moveTo(hx,hy);ctx.lineTo(hx+dir.x*len,hy+dir.y*len);ctx.stroke();ctx.setLineDash([]);
+  const ax=hx+dir.x*len,ay=hy+dir.y*len,ang=Math.atan2(dir.y,dir.x);
+  ctx.fillStyle=ctx.strokeStyle;ctx.beginPath();ctx.moveTo(ax,ay);
+  ctx.lineTo(ax-12*Math.cos(ang-0.4),ay-12*Math.sin(ang-0.4));
+  ctx.lineTo(ax-12*Math.cos(ang+0.4),ay-12*Math.sin(ang+0.4));ctx.closePath();ctx.fill();
+}
+function drawChargeBar(){
+  if(!charging||ballState!=='held') return;
+  const px=playerBody.position.x,py=playerBody.position.y-PH/2-20;
+  const bw=50,bh=8;
+  ctx.fillStyle='rgba(0,0,0,0.5)';ctx.fillRect(px-bw/2-1,py-1,bw+2,bh+2);
+  const r=Math.floor(chargePower*255),g=Math.floor((1-chargePower*0.7)*255);
+  ctx.fillStyle=`rgb(${r},${g},50)`;ctx.fillRect(px-bw/2,py,bw*chargePower,bh);
+  ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.strokeRect(px-bw/2,py,bw,bh);
+  ctx.fillStyle='#fff';ctx.font='bold 10px "Segoe UI",Arial,sans-serif';
+  ctx.textAlign='center';ctx.fillText('POWER',px,py-4);
+}
+function drawHUD(){
+  ctx.fillStyle='#fff';ctx.font='bold 24px "Segoe UI",Arial,sans-serif';
+  ctx.textAlign='left';ctx.fillText(`Score: ${score}`,20,36);
+  ctx.font='16px "Segoe UI",Arial,sans-serif';ctx.fillStyle='#aaa';
+  ctx.fillText(`Total: ${totalScore+score}`,20,58);
+  const rem=Math.max(0,Math.ceil(lvlLimit-lvlTime));
+  ctx.fillStyle=rem<10?'#ff4444':'#fff';ctx.font='bold 24px "Segoe UI",Arial,sans-serif';
+  ctx.textAlign='right';ctx.fillText(`Time: ${rem}s`,CW-20,36);
+  ctx.fillStyle='#aaa';ctx.font='16px "Segoe UI",Arial,sans-serif';ctx.textAlign='center';
+  ctx.fillText(`Level ${curLvl+1}: ${LEVELS[curLvl].name}`,CW/2,30);
+  const sc={held:'#88ff88',thrown:'#ffaa44',bouncing:'#ff8844',retracting:'#ff8888'};
+  const sl={held:'● Ready',thrown:'● Thrown',bouncing:'● Bouncing',retracting:'● Retracting'};
+  ctx.font='14px "Segoe UI",Arial,sans-serif';ctx.fillStyle=sc[ballState]||'#fff';
+  ctx.textAlign='left';ctx.fillText(sl[ballState]||ballState,20,80);
+  ctx.fillStyle='#88aacc';ctx.fillText(`⛓ ${curLinks} links`,20,98);
+  const rb=boxes.filter(b=>b.boxData.type!=='metal'&&!b.boxData.destroyed).length;
+  ctx.fillStyle='#fff';ctx.textAlign='right';ctx.font='16px "Segoe UI",Arial,sans-serif';
+  ctx.fillText(`Boxes: ${rb}`,CW-20,58);
+  ctx.fillStyle='#aaddff';ctx.font='14px "Segoe UI",Arial,sans-serif';
+  ctx.fillText(`Jumps: ${'●'.repeat(jumpsLeft)}${'○'.repeat(MAX_JUMPS-jumpsLeft)}`,CW-20,78);
+  ctx.fillStyle='rgba(255,255,255,0.2)';ctx.font='12px "Segoe UI",Arial,sans-serif';ctx.textAlign='center';
+  ctx.fillText('A/D: Move | W/Space: Jump (×2) | Hold Click: Charge | Release: Throw | R: Retract',CW/2,CH-10);
+  if(lvlMsgTimer>0){
+    ctx.globalAlpha=Math.min(1,lvlMsgTimer/500);ctx.fillStyle='#ffcc44';
+    ctx.font='bold 26px "Segoe UI",Arial,sans-serif';ctx.textAlign='center';
+    ctx.strokeStyle='#000';ctx.lineWidth=3;ctx.strokeText(lvlMsg,CW/2,130);
+    ctx.fillText(lvlMsg,CW/2,130);ctx.globalAlpha=1;
+  }
+}
+ 
+// ======================== SCREENS ============================
+function drawTitle(){
+  drawBg();
+  ctx.fillStyle='#fff';ctx.font='bold 64px "Segoe UI",Arial,sans-serif';ctx.textAlign='center';
+  ctx.strokeStyle='#000';ctx.lineWidth=4;
+  ctx.strokeText('⚙ Ball & Chain Smasher ⚙',CW/2,200);
+  ctx.fillText('⚙ Ball & Chain Smasher ⚙',CW/2,200);
+  ctx.fillStyle='#aaa';ctx.font='24px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('Smash all the boxes with your wrecking ball!',CW/2,260);
+  ctx.fillStyle='#88ccff';ctx.font='18px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('🔋 Hold mouse to charge  •  🪀 Bouncy rubber-band physics  •  🦘 Double jump',CW/2,310);
+  ctx.fillText('⛓ Chain grows each level  •  💥 Chain reactions for bonus points',CW/2,340);
+  const pulse=0.7+0.3*Math.sin(Date.now()/300);
+  ctx.globalAlpha=pulse;ctx.fillStyle='#ffcc44';ctx.font='bold 32px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('Click or Press Space to Play',CW/2,430);ctx.globalAlpha=1;
+  ctx.fillStyle='#888';ctx.font='18px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('A/D or ←/→: Move  |  W/Space/↑: Jump (Double!)',CW/2,510);
+  ctx.fillText('Hold Click: Charge Throw  |  Release: Launch  |  R: Retract',CW/2,540);
+  const t=Date.now()/1000;
+  for(let i=0;i<3;i++){
+    const bx=300+i*340,by=630+Math.sin(t*2+i*1.5)*25;
+    ctx.fillStyle='#555';ctx.beginPath();ctx.arc(bx,by,18,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#333';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='rgba(255,136,68,0.2)';ctx.beginPath();ctx.arc(bx,by+8,14,0,Math.PI*2);ctx.fill();
+  }
+}
+function drawLvlComplete(){
+  ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(0,0,CW,CH);
+  ctx.textAlign='center';ctx.fillStyle='#88ff88';ctx.font='bold 56px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('Level Complete!',CW/2,250);
+  ctx.fillStyle='#fff';ctx.font='28px "Segoe UI",Arial,sans-serif';
+  ctx.fillText(`Score: ${score}`,CW/2,320);
+  const tb=Math.max(0,Math.floor(lvlLimit-lvlTime))*10;
+  ctx.fillStyle='#ffcc44';ctx.fillText(`Time Bonus: +${tb}`,CW/2,360);
+  ctx.fillStyle='#aaa';ctx.font='24px "Segoe UI",Arial,sans-serif';
+  ctx.fillText(`Total Score: ${totalScore}`,CW/2,420);
+  if(curLvl+1<LEVELS.length){
+    ctx.fillStyle='#88aacc';ctx.font='20px "Segoe UI",Arial,sans-serif';
+    ctx.fillText(`Next level chain: ${BASE_LINKS+(curLvl+1)*LINKS_PER_LVL} links`,CW/2,460);
+  }
+  const pulse=0.7+0.3*Math.sin(Date.now()/300);ctx.globalAlpha=pulse;
+  ctx.fillStyle='#ffcc44';ctx.font='bold 28px "Segoe UI",Arial,sans-serif';
+  ctx.fillText(curLvl+1<LEVELS.length?'Click or Press Space for Next Level':'Click or Press Space to See Final Score',CW/2,520);
+  ctx.globalAlpha=1;
+}
+function drawGameOver(){
+  drawBg();ctx.textAlign='center';
+  ctx.fillStyle='#ffcc44';ctx.font='bold 56px "Segoe UI",Arial,sans-serif';
+  ctx.strokeStyle='#000';ctx.lineWidth=3;
+  ctx.strokeText('🏆 All Levels Complete! 🏆',CW/2,250);
+  ctx.fillText('🏆 All Levels Complete! 🏆',CW/2,250);
+  ctx.fillStyle='#fff';ctx.font='bold 36px "Segoe UI",Arial,sans-serif';
+  ctx.fillText(`Final Score: ${totalScore}`,CW/2,340);
+  ctx.fillStyle='#aaa';ctx.font='22px "Segoe UI",Arial,sans-serif';
+  ctx.fillText(`You cleared all ${LEVELS.length} levels!`,CW/2,400);
+  const pulse=0.7+0.3*Math.sin(Date.now()/300);ctx.globalAlpha=pulse;
+  ctx.fillStyle='#88ccff';ctx.font='bold 26px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('Click or Press Space to Return to Title',CW/2,500);ctx.globalAlpha=1;
+}
+ 
+// ======================== MAIN LOOP ==========================
+function gameLoop(ts){
+  const dt=lastTS?Math.min(ts-lastTS,32):16.67;
+  lastTS=ts;
+ 
+  if(gameState==='playing'){
+    updatePlayer();
+    updateBallChain(dt);
+    updateParticles(dt);
+    updateShake(dt);
+    Engine.update(engine,dt);
+    lvlTime+=dt/1000;
+    checkWin();
+  }
+ 
+  ctx.save();
+  if(shakeAmt>0&&shakeDur>0){
+    ctx.translate((Math.random()-0.5)*shakeAmt*2,(Math.random()-0.5)*shakeAmt*2);
+  }
+ 
+  if(gameState==='title'){
+    drawTitle();
+  }else if(gameState==='playing'){
+    drawBg();drawGround();drawPlats();drawBoxes();drawFragments();
+    drawChain();drawBall();drawPlayer();
+    drawAim();drawChargeBar();
+    drawParticles();drawTextParts();drawHUD();
+  }else if(gameState==='levelComplete'){
+    drawBg();drawGround();drawPlats();drawBoxes();drawFragments();
+    drawChain();drawBall();drawPlayer();drawParticles();
+    drawLvlComplete();
+  }else if(gameState==='gameOver'){
+    drawGameOver();
+  }
+ 
+  ctx.restore();
+  requestAnimationFrame(gameLoop);
+}
+ 
+// ======================== BOOT ===============================
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
